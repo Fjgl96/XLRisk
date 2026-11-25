@@ -104,6 +104,7 @@ Public Sub CollectRiskOutputs(Coll As Collection)
     Dim Row As Integer
     Dim Cell As Range
     Dim RiskOutput As ClsRiskOutput
+    Dim Seen As New Collection
     
     Set Sht = ActiveWorkBook.Worksheets("XLRisk")
     Set R = Sht.Range("RiskOutputs").CurrentRegion
@@ -114,9 +115,76 @@ Public Sub CollectRiskOutputs(Coll As Collection)
             Set RiskOutput = New ClsRiskOutput
             RiskOutput.Init R.Cells(Row, 2).Value, Cell
             Coll.Add RiskOutput
+            MarkSeen Seen, AddressWithSheet(Cell)
         Next Cell
     Next Row
+
+    ' Outputs marked in their formula with RiskOutput
+    CollectFormulaOutputs Coll, Seen
 End Sub
+
+Private Sub CollectFormulaOutputs(Coll As Collection, Seen As Collection)
+' Adds the cells whose formula contains RiskOutput( and are not outputs already
+    Dim Sht As Worksheet
+    Dim Formulas As Range
+    Dim Cell As Range
+    Dim OutputItem As ClsRiskOutput
+    Dim Key As String
+
+    For Each Sht In ActiveWorkBook.Worksheets
+        If Sht.Name <> "XLRisk" And Left(Sht.Name, 13) <> "Risk Results " Then
+            Set Formulas = Nothing
+            On Error Resume Next
+            Set Formulas = Sht.UsedRange.SpecialCells(xlCellTypeFormulas)
+            On Error GoTo 0
+            If Not Formulas Is Nothing Then
+                For Each Cell In Formulas
+                    If InStr(1, Cell.Formula, "RiskOutput(", vbTextCompare) > 0 Then
+                        Key = AddressWithSheet(Cell)
+                        If Not IsSeen(Seen, Key) Then
+                            Set OutputItem = New ClsRiskOutput
+                            OutputItem.Init RiskOutputName(Cell), Cell
+                            Coll.Add OutputItem
+                            MarkSeen Seen, Key
+                        End If
+                    End If
+                Next Cell
+            End If
+        End If
+    Next Sht
+End Sub
+
+Private Function RiskOutputName(Cell As Range) As String
+' The name given as first argument of RiskOutput("Name"); the cell address otherwise
+    Dim F As String
+    Dim Pos As Long
+    Dim Rest As String
+    Dim EndPos As Long
+
+    F = Cell.Formula
+    Pos = InStr(1, F, "RiskOutput(", vbTextCompare)
+    Rest = LTrim(Mid(F, Pos + Len("RiskOutput(")))
+    If Left(Rest, 1) = """" Then
+        EndPos = InStr(2, Rest, """")
+        If EndPos > 2 Then RiskOutputName = Mid(Rest, 2, EndPos - 2)
+    End If
+    If Len(RiskOutputName) = 0 Then RiskOutputName = AddressWithSheet(Cell)
+End Function
+
+Private Sub MarkSeen(Seen As Collection, Key As String)
+    On Error Resume Next
+    Seen.Add True, Key
+End Sub
+
+Private Function IsSeen(Seen As Collection, Key As String) As Boolean
+    Dim Dummy As Variant
+    On Error GoTo NotSeen
+    Dummy = Seen(Key)
+    IsSeen = True
+    Exit Function
+NotSeen:
+    IsSeen = False
+End Function
 
 Public Sub ThickBorders(R As Range)
     With R

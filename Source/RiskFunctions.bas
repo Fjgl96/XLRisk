@@ -12,7 +12,7 @@ Public Function RiskFunctionList() As Variant
     RiskFunctionList = Array("RiskBernoulli", "RiskBeta", "RiskBinomial", _
     "RiskCumul", "RiskDiscrete", "RiskDUniform", "RiskErlang", "RiskExpon", _
     "RiskGamma", "RiskLogNorm", "RiskNormal", "RiskTriang", "RiskPert", _
-    "RiskUniform", "RiskWeibull")
+    "RiskUniform", "RiskWeibull", "RiskLognorm2", "RiskPoisson")
 End Function
 
 Public Function RiskBinomial(N As Long, P As Double, Optional Corrmat As Long = 0) As Long
@@ -263,6 +263,48 @@ Attribute RiskLogNorm.VB_ProcData.VB_Invoke_Func = " \n20"
     End If
 End Function
 
+Public Function RiskLognorm2(Mu As Double, Sigma As Double, Optional Corrmat As Long = 0) As Double
+Attribute RiskLognorm2.VB_Description = "Generate random sample from a lognormal distribution given the mean and standard deviation of Ln(X). Same as RiskLogNorm"
+Attribute RiskLognorm2.VB_ProcData.VB_Invoke_Func = " \n20"
+'   Same parameters as RiskLognorm2 in @RISK: mean and standard deviation of Ln(X).
+'   XLRisk's RiskLogNorm uses these same parameters.
+    Application.Volatile (ProduceRandomSample)
+    RiskLognorm2 = RiskLogNorm(Mu, Sigma)
+End Function
+
+Public Function RiskPoisson(Lambda As Double, Optional Corrmat As Long = 0) As Variant
+Attribute RiskPoisson.VB_Description = "Generate random sample from a Poisson distribution"
+Attribute RiskPoisson.VB_ProcData.VB_Invoke_Func = " \n20"
+'   Number of events in a period when on average Lambda events occur
+    Dim RndValue As Double
+    Dim K As Long
+    Dim Cum As Double
+
+    Application.Volatile (ProduceRandomSample)
+    'Error checking
+    If Lambda <= 0 Then
+        RiskPoisson = CVErr(xlErrValue)
+        Exit Function
+    End If
+    If ProduceRandomSample Then
+        If gSimulation Is Nothing Then
+            RndValue = RngUniform()
+        Else
+            RndValue = gSimulation.GetRndSample(Application.Caller)
+        End If
+        ' Inverse of the cumulative distribution
+        K = 0
+        Cum = WorksheetFunction.Poisson_Dist(0, Lambda, True)
+        Do While Cum < RndValue And K < 1000000
+            K = K + 1
+            Cum = WorksheetFunction.Poisson_Dist(K, Lambda, True)
+        Loop
+        RiskPoisson = K
+    Else
+        RiskPoisson = Lambda
+    End If
+End Function
+
 Function RiskTriang(Min As Double, Mode As Double, Max As Double, Optional Corrmat As Long = 0) As Double
 Attribute RiskTriang.VB_Description = "Generate random sample from a triangular destribution"
 Attribute RiskTriang.VB_ProcData.VB_Invoke_Func = " \n20"
@@ -502,6 +544,24 @@ Public Sub FunctionDescriptions()
         Array("Minimum value", "Maximum Value", CorrMatDesc))
     Call CreateFunctionDescription("RiskWeibull", "Generate random sample from a Weibull destribution", _
         Array("Shape parameter", "Scale parameter", CorrMatDesc))
+    Call CreateFunctionDescription("RiskLognorm2", "Generate random sample from a lognormal destribution (same as RiskLogNorm)", _
+        Array("Mean of Ln(X)", "Standard Deviation of Ln(X)", CorrMatDesc))
+    Call CreateFunctionDescription("RiskPoisson", "Generate random sample from a Poisson destribution", _
+        Array("Mean number of events", CorrMatDesc))
+    ' Outputs and statistics of the latest simulation
+    Call CreateFunctionDescription("RiskOutput", "Marks the cell as a simulation output. Use it as =RiskOutput(""Name"") + formula. Returns 0", _
+        Array("Optional name of the output", "Optional. Ignored (kept for compatibility)", "Optional. Ignored (kept for compatibility)"))
+    Call CreateFunctionDescription("RiskMean", "Mean of a cell in the latest simulation", Array("Output or input cell"))
+    Call CreateFunctionDescription("RiskStdDev", "Standard deviation of a cell in the latest simulation", Array("Output or input cell"))
+    Call CreateFunctionDescription("RiskMin", "Minimum of a cell in the latest simulation", Array("Output or input cell"))
+    Call CreateFunctionDescription("RiskMax", "Maximum of a cell in the latest simulation", Array("Output or input cell"))
+    Call CreateFunctionDescription("RiskPercentile", "Value of a cell at a percentile in the latest simulation", _
+        Array("Output or input cell", "Percentile between 0 and 1, for example 0.05"))
+    Call CreateFunctionDescription("RiskPtoX", "Same as RiskPercentile", _
+        Array("Output or input cell", "Percentile between 0 and 1, for example 0.05"))
+    Call CreateFunctionDescription("RiskTarget", "Probability that a cell is less than or equal to a value in the latest simulation", _
+        Array("Output or input cell", "Target value"))
+    Call CreateFunctionDescription("RiskXtoP", "Same as RiskTarget", Array("Output or input cell", "Target value"))
     ' Other functions
     Call CreateFunctionDescription("RiskCorrmat", "When added as an optional last argument to a Risk function it creates a link to a correlation matrix", _
         Array("Range containing a lower triangular correlation matrix", "Position of this risk input function in the correlation matrix"))
