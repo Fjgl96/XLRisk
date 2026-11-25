@@ -70,11 +70,11 @@ if ($policyVbom -ne 1 -and $userVbom -ne 1) {
 }
 
 # Returns the code modules (standard, class, form) of a VBA project as an array.
-# COM collections are read by index: piping them in PowerShell is not reliable.
+# The collection is walked with foreach: PowerShell cannot call VBComponents.Item
+# with a number ("Index was outside the bounds of the array").
 function Get-CodeComponents($Components) {
     $result = @()
-    for ($i = 1; $i -le $Components.Count; $i++) {
-        $component = $Components.Item($i)
+    foreach ($component in $Components) {
         if ($codeTypes -contains [int]$component.Type) { $result += $component }
     }
     return ,$result
