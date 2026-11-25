@@ -88,7 +88,8 @@ If vDims = 1 Then
     endIndex = UBound(vArray)
     J = endIndex
     Do While J > startIndex
-        k = CLng(startIndex + Rnd() * (J - startIndex))
+        ' Fisher-Yates: every index from startIndex to J is equally likely
+        k = startIndex + Int(RngUniform() * (J - startIndex + 1))
         temp = vArray(J)
         vArray(J) = vArray(k)
         vArray(k) = temp
@@ -112,7 +113,8 @@ ElseIf vDims = 2 Then
     endIndex = UBound(vArray, 1)
     J = endIndex
     Do While J > startIndex
-        k = CLng(startIndex + Rnd() * (J - startIndex))
+        ' Fisher-Yates: every index from startIndex to J is equally likely
+        k = startIndex + Int(RngUniform() * (J - startIndex + 1))
         temp = vArray(J, Column)
         vArray(J, Column) = vArray(k, Column)
         vArray(k, Column) = temp

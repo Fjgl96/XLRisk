@@ -34,6 +34,19 @@ Property Get ActiveWorkBook() As Workbook
     Set ActiveWorkBook = mWB
 End Property
 
+Property Get LastResults() As Variant
+' Iteration number, risk input samples and risk output values of the last run
+    LastResults = mSimResults
+End Property
+
+Property Get InputCount() As Long
+    If Not mRiskInputs Is Nothing Then InputCount = mRiskInputs.Count
+End Property
+
+Property Get OutputCount() As Long
+    If Not mRiskOutputs Is Nothing Then OutputCount = mRiskOutputs.Count
+End Property
+
 Property Get ProcessingCorrmatInfo() As Boolean
     ProcessingCorrmatInfo = mProcessingCorrmatInfo
 End Property
@@ -52,6 +65,9 @@ Private Sub Class_Initialize()
     mMacroAfter = XLRisk.Range("MacroAfter").Value
     On Error Resume Next
     mMacroAfterSimulation = XLRisk.Range("MacroAfterSimulation").Value
+    ' Optional setting: TRUE goes back to VBA Rnd() (results of XLRisk 1.0)
+    UseLegacyRnd = False
+    UseLegacyRnd = XLRisk.Range("LegacyRnd").Value
     mCurrentIteration = 0
     mProcessingCorrmatInfo = False
 End Sub
@@ -159,20 +175,19 @@ Public Sub Run()
         End If
     Next RiskInput
     
+    'Seed the random number generator before any sample is drawn,
+    'so that a fixed Seed reproduces the whole simulation
+    If mSeed <> 0 Then
+        RngSeed mSeed
+    Else
+        RngRandomize
+    End If
+
     'Check Input Groups
     For Each InputGroup In mInputGroups
         If Not InputGroup.IsValid Then GoTo RestoreExcel
         InputGroup.GenerateRndSamples
     Next InputGroup
-    
-    'Randomize
-    If mSeed <> 0 Then
-        'https://stackoverflow.com/questions/16589180/visual-basic-random-number-with-seed-but-in-reverse
-        Rnd (-1)
-        Randomize (mSeed)
-    Else
-        Randomize
-    End If
     
     ' Allocate storage space
     ReDim mSimResults(1 To mIterations, 1 To 1 + mRiskInputs.Count + mRiskOutputs.Count)
@@ -222,7 +237,7 @@ Public Function GetRndSample(Cell As Range) As Double
     Dim RiskInput As ClsRiskInput
     Dim InputGroup As ClsInputGroup
     If (mCurrentIteration < 1) Or Not (Cell.Worksheet.Parent Is mWB) Then
-        GetRndSample = Rnd()
+        GetRndSample = RngUniform()
     Else
         Set RiskInput = mRiskInputs.Item(AddressWithSheet(Cell))
         Set InputGroup = mInputGroups.Item(RiskInput.CorrmatAddress)

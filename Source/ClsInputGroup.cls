@@ -60,14 +60,14 @@ Public Sub GenerateRndSamples()
             If mLatinHypercube Or Not (mCorrmatRng Is Nothing) Then
                 If Iter = 1 Then
                     Do
-                        U = Rnd()
+                        U = RngUniform()
                     Loop Until U <> 0
                     mRndSamples(Iter, Col) = U / mIterations
                 Else
-                    mRndSamples(Iter, Col) = (Rnd() + Iter - 1) / mIterations
+                    mRndSamples(Iter, Col) = (RngUniform() + Iter - 1) / mIterations
                 End If
             Else
-                mRndSamples(Iter, Col) = Rnd()
+                mRndSamples(Iter, Col) = RngUniform()
             End If
         Next Col
     Next Iter

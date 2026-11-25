@@ -4,6 +4,23 @@ XLRisk is an Excel addin for performing [Monte Carlo simulation](https://en.wiki
 *Note:*  
 Excel 2013 or later required.  Excel 16 or newer is recommended.
 
+## About this fork
+This fork, maintained by [Fjgl96](https://github.com/Fjgl96), extends the original
+[XLRisk by pyscripter](https://github.com/pyscripter/XLRisk) towards the practical feature set of
+commercial Monte Carlo add-ins, keeping it free, open source and compatible with existing XLRisk
+workbooks. Changes are listed in the [CHANGELOG](CHANGELOG.md).
+
+* **1.1.0** replaces VBA `Rnd()` with the MRG32k3a generator, makes a fixed Seed reproduce the whole
+  simulation, fixes the bias of the Latin Hypercube shuffle and adds self tests and a build script.
+* Developers: the VBA code lives as text in `Source/`. Build the add-in with
+  [`build/build.ps1`](build/README.md) and check it with the self tests described in
+  [`tests/README.md`](tests/README.md).
+
+**En español:** este fork busca que XLRisk sea una alternativa open source práctica a los complementos
+comerciales de simulación Monte Carlo, sin romper los libros que ya funcionan con XLRisk. La versión 1.1.0
+cambia el generador de números aleatorios por MRG32k3a, hace que la semilla reproduzca toda la simulación
+y agrega pruebas automáticas. El detalle está en el [CHANGELOG](CHANGELOG.md).
+
 ![The XLRisk Ribbon Tab](https://github.com/pyscripter/XLRisk/wiki/Images/XLRisk_Ribbon.jpg)
 
 ## Features
