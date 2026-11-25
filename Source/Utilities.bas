@@ -26,7 +26,7 @@ Sub CollectRiskInputs(Coll As Collection)
             Pos = InStr(1, Formula, "risk", vbTextCompare)
             If Pos > 0 Then
                 For Each RiskFunction In FunctionList
-                     If InStr(Pos, Formula, RiskFunction, vbTextCompare) > 0 Then
+                     If InStr(Pos, Formula, RiskFunction & "(", vbTextCompare) > 0 Then
                          Set RiskInput = New ClsRiskInput
                          RiskInput.Init Cell
                          Call Coll.Add(RiskInput, AddressWithSheet(Cell))
@@ -57,7 +57,8 @@ Public Function OneRiskFunctionPerCell(Coll As Collection) As Boolean
         For Each RiskFunction In FunctionList
             Pos = 1
             Do Until Pos = 0
-                Pos = InStr(Pos, RiskInput.Cell.Formula, RiskFunction, vbTextCompare)
+                ' Match the name followed by "(" so that RiskLogNorm is not counted inside RiskLognorm2
+                Pos = InStr(Pos, RiskInput.Cell.Formula, RiskFunction & "(", vbTextCompare)
                 If Pos > 0 Then
                     Count = Count + 1
                     Pos = Pos + Len(RiskFunction)
