@@ -80,15 +80,16 @@ function Get-CodeComponents($Components) {
     return ,$result
 }
 
-function Get-VBComponents($Workbook) {
+# Returns the VBA project of a workbook. The function returns the project and not
+# its VBComponents: PowerShell would unroll a returned collection into a plain
+# fixed-size array, which has no working Remove or Import.
+function Get-VBProject($Workbook) {
     $project = $Workbook.VBProject
     if ($null -eq $project) {
         throw ("Excel did not give access to the VBA project of $($Workbook.Name). Check that " +
                "'Trust access to the VBA project object model' is enabled and that the project is not locked.")
     }
-    $components = $project.VBComponents
-    if ($null -eq $components) { throw "The VBA project of $($Workbook.Name) has no components collection." }
-    return $components
+    return $project
 }
 
 $excel = $null
@@ -102,7 +103,8 @@ try {
 
     # Pass 1: remove the old code modules
     $wb = $excel.Workbooks.Open($target)
-    $components = Get-VBComponents $wb
+    $project = Get-VBProject $wb
+    $components = $project.VBComponents
     $old = Get-CodeComponents $components
     if ($old.Count -eq 0) { throw "No code modules found in $($BaseAddin): is it the XLRisk add-in?" }
     foreach ($component in $old) {
@@ -115,7 +117,8 @@ try {
 
     # Pass 2: import the source files
     $wb = $excel.Workbooks.Open($target)
-    $components = Get-VBComponents $wb
+    $project = Get-VBProject $wb
+    $components = $project.VBComponents
     foreach ($file in $sourceFiles) {
         Write-Host "  importing $($file.Name)"
         $null = $components.Import($file.FullName)
