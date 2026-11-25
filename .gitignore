@@ -2,3 +2,5 @@
 dist/
 # Excel lock files
 ~$*
+# Python cache
+__pycache__/
