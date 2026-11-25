@@ -49,6 +49,48 @@ Unblock-File -Path $target
 
 Write-Host "Building $target from $($sourceFiles.Count) source files"
 
+# Excel only lets scripts change VBA code when "Trust access to the VBA project
+# object model" is on (registry value AccessVBOM = 1). Check it before starting.
+function Get-RegValue([string]$Path, [string]$Name) {
+    try { return (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name }
+    catch { return $null }
+}
+$policyVbom = Get-RegValue 'HKCU:\Software\Policies\Microsoft\Office\16.0\Excel\Security' 'AccessVBOM'
+$userVbom = Get-RegValue 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'AccessVBOM'
+if ($policyVbom -eq 0) {
+    throw ("Your organization blocks 'Trust access to the VBA project object model' by policy. " +
+           "Use the manual build in build\README.md. / Tu organizacion bloquea este acceso por politica: " +
+           "usa el build manual de build\README.md.")
+}
+if ($policyVbom -ne 1 -and $userVbom -ne 1) {
+    throw ("Enable 'Trust access to the VBA project object model' in Excel: File > Options > Trust Center > " +
+           "Trust Center Settings > Macro Settings, then run the script again. / Activa 'Confiar en el acceso " +
+           "al modelo de objetos de proyectos de VBA' en Excel: Archivo > Opciones > Centro de confianza > " +
+           "Configuracion del Centro de confianza > Configuracion de macros, y vuelve a correr el script.")
+}
+
+# Returns the code modules (standard, class, form) of a VBA project as an array.
+# COM collections are read by index: piping them in PowerShell is not reliable.
+function Get-CodeComponents($Components) {
+    $result = @()
+    for ($i = 1; $i -le $Components.Count; $i++) {
+        $component = $Components.Item($i)
+        if ($codeTypes -contains [int]$component.Type) { $result += $component }
+    }
+    return ,$result
+}
+
+function Get-VBComponents($Workbook) {
+    $project = $Workbook.VBProject
+    if ($null -eq $project) {
+        throw ("Excel did not give access to the VBA project of $($Workbook.Name). Check that " +
+               "'Trust access to the VBA project object model' is enabled and that the project is not locked.")
+    }
+    $components = $project.VBComponents
+    if ($null -eq $components) { throw "The VBA project of $($Workbook.Name) has no components collection." }
+    return $components
+}
+
 $excel = $null
 $wb = $null
 try {
@@ -60,16 +102,9 @@ try {
 
     # Pass 1: remove the old code modules
     $wb = $excel.Workbooks.Open($target)
-    try {
-        $components = $wb.VBProject.VBComponents
-        $null = $components.Count
-    }
-    catch {
-        throw ("Excel does not allow access to the VBA project. Enable " +
-               "'Trust access to the VBA project object model' in File > Options > " +
-               "Trust Center > Trust Center Settings > Macro Settings, then run the script again.")
-    }
-    $old = @($components | Where-Object { $codeTypes -contains [int]$_.Type })
+    $components = Get-VBComponents $wb
+    $old = Get-CodeComponents $components
+    if ($old.Count -eq 0) { throw "No code modules found in $($BaseAddin): is it the XLRisk add-in?" }
     foreach ($component in $old) {
         Write-Host "  removing $($component.Name)"
         $components.Remove($component)
@@ -80,15 +115,15 @@ try {
 
     # Pass 2: import the source files
     $wb = $excel.Workbooks.Open($target)
-    $components = $wb.VBProject.VBComponents
+    $components = Get-VBComponents $wb
     foreach ($file in $sourceFiles) {
         Write-Host "  importing $($file.Name)"
         $null = $components.Import($file.FullName)
     }
 
     # Every source file must give exactly one module with the same name
-    $names = @($components | Where-Object { $codeTypes -contains [int]$_.Type } |
-        ForEach-Object { $_.Name })
+    $imported = Get-CodeComponents $components
+    $names = @($imported | ForEach-Object { $_.Name })
     $expected = @($sourceFiles | ForEach-Object { $_.BaseName })
     $missing = @($expected | Where-Object { $names -notcontains $_ })
     $extra = @($names | Where-Object { $expected -notcontains $_ })
