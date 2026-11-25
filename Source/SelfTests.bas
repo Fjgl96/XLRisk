@@ -1,0 +1,414 @@
+Attribute VB_Name = "SelfTests"
+Option Explicit
+
+' Self tests for XLRisk
+'
+' How to run them: in Excel press Alt+F8, type XLRisk.xlam!XLRiskSelfTests
+' in the "Macro name" box and press Run. A new workbook lists every check
+' with PASS or FAIL. Nothing is saved.
+'
+' Reference values
+' - The MRG32k3a values for six seeds equal to 12345 are the published values
+'   of L'Ecuyer's reference implementation (first output 0.1270111220...).
+' - tests/reference/mrg32k3a_reference.py regenerates every reference value
+'   used here and runs the same statistical checks outside Excel.
+' - The simulation checks compare simulated statistics with exact values of
+'   the model, with a tolerance of about 3 standard errors.
+
+Private Const SIM_ITERATIONS As Long = 5000
+Private Const SIM_SEED As Double = 20261125#
+
+Private mReport As Worksheet
+Private mRow As Long
+Private mChecks As Long
+Private mFailures As Long
+
+Public Sub XLRiskSelfTests()
+    Dim StartTime As Double
+    Dim OldLegacy As Boolean
+
+    StartTime = Timer
+    OldLegacy = UseLegacyRnd
+    UseLegacyRnd = False
+    mChecks = 0
+    mFailures = 0
+
+    CreateReport
+    TestRngReferenceValues
+    TestRngSeeding
+    TestRngUniformity
+    TestShuffle
+    TestSimulation
+
+    UseLegacyRnd = OldLegacy
+    RngRandomize
+    FinishReport Timer - StartTime
+End Sub
+
+'---------------------------------------------------------------------------
+' Random number generator
+'---------------------------------------------------------------------------
+
+Private Sub TestRngReferenceValues()
+    Const G As String = "Generator"
+    RngSetState 12345#, 12345#, 12345#, 12345#, 12345#, 12345#
+    CheckNear G, "MRG32k3a published value #1", 0.127011122046577, RngUniform(), 1E-12
+    CheckNear G, "MRG32k3a published value #2", 0.318527565396795, RngUniform(), 1E-12
+    CheckNear G, "MRG32k3a published value #3", 0.30918601558327, RngUniform(), 1E-12
+End Sub
+
+Private Sub TestRngSeeding()
+    Const G As String = "Generator"
+    Dim First(1 To 1000) As Double
+    Dim I As Long
+    Dim Same As Boolean
+
+    RngSeed 12345#
+    CheckNear G, "RngSeed 12345, value #1", 0.19447201221487, RngUniform(), 1E-12
+    CheckNear G, "RngSeed 12345, value #2", 1.20970596364207E-02, RngUniform(), 1E-12
+    CheckNear G, "RngSeed 12345, value #3", 0.188748790477344, RngUniform(), 1E-12
+
+    RngSeed 777#
+    For I = 1 To 1000
+        First(I) = RngUniform()
+    Next I
+    RngSeed 777#
+    Same = True
+    For I = 1 To 1000
+        If RngUniform() <> First(I) Then Same = False
+    Next I
+    CheckTrue G, "The same seed gives the same 1,000 numbers", Same, IIf(Same, "identical", "different")
+End Sub
+
+Private Sub TestRngUniformity()
+    Const G As String = "Generator"
+    Const N As Long = 200000
+    Const BINS As Long = 100
+    Dim Counts(1 To 100) As Long
+    Dim I As Long
+    Dim Bin As Long
+    Dim U As Double
+    Dim Prev As Double
+    Dim SumU As Double
+    Dim SumU2 As Double
+    Dim SumLag As Double
+    Dim MeanU As Double
+    Dim VarU As Double
+    Dim Lag1 As Double
+    Dim ChiSq As Double
+    Dim Expected As Double
+
+    RngSeed 2026#
+    Prev = 0#
+    For I = 1 To N
+        U = RngUniform()
+        SumU = SumU + U
+        SumU2 = SumU2 + U * U
+        If I > 1 Then SumLag = SumLag + U * Prev
+        Bin = Int(U * BINS) + 1
+        Counts(Bin) = Counts(Bin) + 1
+        Prev = U
+    Next I
+
+    MeanU = SumU / N
+    VarU = SumU2 / N - MeanU * MeanU
+    Lag1 = (SumLag / (N - 1) - 0.25) * 12#
+    Expected = N / BINS
+    For I = 1 To BINS
+        ChiSq = ChiSq + (Counts(I) - Expected) ^ 2 / Expected
+    Next I
+
+    CheckNear G, "Mean of 200,000 uniforms", 0.5, MeanU, 4# * Sqr(1# / 12# / N)
+    CheckNear G, "Variance of 200,000 uniforms", 1# / 12#, VarU, 0.0007
+    CheckNear G, "Lag-1 autocorrelation", 0#, Lag1, 4# / Sqr(N)
+    CheckBelow G, "Chi-square of 100 bins (99.9% critical value)", 148.23, ChiSq
+End Sub
+
+'---------------------------------------------------------------------------
+' Latin Hypercube shuffle
+'---------------------------------------------------------------------------
+
+Private Sub TestShuffle()
+    Const G As String = "Latin Hypercube"
+    Const REPS As Long = 20000
+    Dim V(1 To 10) As Double
+    Dim Counts(1 To 10) As Long
+    Dim R As Long
+    Dim I As Long
+    Dim Total As Double
+    Dim ChiSq As Double
+    Dim Expected As Double
+    Dim IntegrityOK As Boolean
+
+    RngSeed 99#
+    IntegrityOK = True
+    For R = 1 To REPS
+        For I = 1 To 10
+            V(I) = I
+        Next I
+        Shuffle V
+        Total = 0#
+        For I = 1 To 10
+            Total = Total + V(I)
+            If V(I) = 1# Then Counts(I) = Counts(I) + 1
+        Next I
+        If Total <> 55# Then IntegrityOK = False
+    Next R
+
+    Expected = REPS / 10
+    For I = 1 To 10
+        ChiSq = ChiSq + (Counts(I) - Expected) ^ 2 / Expected
+    Next I
+
+    CheckTrue G, "Shuffle keeps every value", IntegrityOK, IIf(IntegrityOK, "sum = 55 in every run", "values lost")
+    CheckBelow G, "Shuffle is uniform: chi-square of 10 positions (99.9%)", 27.88, ChiSq
+End Sub
+
+'---------------------------------------------------------------------------
+' Full simulation of a small model with known exact results
+'---------------------------------------------------------------------------
+
+Private Sub TestSimulation()
+    Const G As String = "Simulation"
+    Dim WB As Workbook
+    Dim WS As Worksheet
+    Dim XS As Worksheet
+    Dim Sim As ClsSimulation
+    Dim Res1 As Variant
+    Dim Res2 As Variant
+    Dim C As Long
+    Dim Same As Boolean
+
+    On Error GoTo Failed
+    Set WB = Workbooks.Add(xlWBATWorksheet)
+    Set WS = WB.Worksheets(1)
+    WS.Name = "Model"
+    BuildModel WS
+
+    WB.Activate
+    Set XS = SetUpXLRisk
+    XS.Range("Seed").Value = SIM_SEED
+    XS.Range("Iterations").Value = SIM_ITERATIONS
+    XS.Range("ScreenUpdate").Value = False
+    XS.Range("LatinHypercube").Value = True
+    AddTestOutput XS, WS.Range("F3"), "Profit"
+    AddTestOutput XS, WS.Range("F4"), "Normal"
+    AddTestOutput XS, WS.Range("F5"), "CorrA"
+    AddTestOutput XS, WS.Range("F6"), "CorrB"
+    AddTestOutput XS, WS.Range("F7"), "Loss"
+    XS.Calculate
+
+    ' First run
+    Set Sim = RunSimulation(WB)
+    If Sim.OutputCount <> 5 Then
+        WriteRow G, "Simulation found the 5 test outputs", 5, Sim.OutputCount, 0, False
+        WB.Close SaveChanges:=False
+        Exit Sub
+    End If
+    Res1 = Sim.LastResults
+    C = 1 + Sim.InputCount  ' last column before the outputs
+
+    CheckNear G, "Iterations completed", SIM_ITERATIONS, UBound(Res1, 1), 0
+    ' Price x quantity: price 45/50/56 (25%/50%/25%), quantity 8,000/10,000/12,000
+    ' (30%/50%/20%), unit cost 32, fixed cost 150,000.
+    ' Exact mean profit 28,850 and exact probability of loss 35%.
+    CheckNear G, "Mean profit of the price x quantity model", 28850#, ColMean(Res1, C + 1), 2000#
+    CheckNear G, "Probability of loss of the price x quantity model", 0.35, ColMean(Res1, C + 5), 0.02
+    CheckNear G, "RiskNormal(100, 15): mean", 100#, ColMean(Res1, C + 2), 0.64
+    CheckNear G, "RiskNormal(100, 15): standard deviation", 15#, ColStd(Res1, C + 2), 0.45
+    CheckNear G, "Correlation induced by RiskCorrmat (target 0.7)", 0.7, ColCorrel(Res1, C + 3, C + 4), 0.03
+
+    ' Second run with the same seed must reproduce every number
+    Set Sim = RunSimulation(WB)
+    Res2 = Sim.LastResults
+    Same = SameResults(Res1, Res2)
+    CheckTrue G, "A fixed Seed reproduces the whole simulation", Same, IIf(Same, "identical", "different")
+
+    WB.Close SaveChanges:=False
+    Exit Sub
+
+Failed:
+    WriteRow G, "Simulation ran without errors", "no error", Err.Description, "", False
+    On Error Resume Next
+    Set gSimulation = Nothing
+    If Not WB Is Nothing Then WB.Close SaveChanges:=False
+End Sub
+
+Private Sub BuildModel(WS As Worksheet)
+    With WS
+        .Range("A1").Value = 45
+        .Range("A2").Value = 50
+        .Range("A3").Value = 56
+        .Range("B1").Value = 0.25
+        .Range("B2").Value = 0.5
+        .Range("B3").Value = 0.25
+        .Range("C1").Value = 8000
+        .Range("C2").Value = 10000
+        .Range("C3").Value = 12000
+        .Range("D1").Value = 0.3
+        .Range("D2").Value = 0.5
+        .Range("D3").Value = 0.2
+        .Range("H1").Value = 1
+        .Range("I1").Value = 0.7
+        .Range("H2").Value = 0.7
+        .Range("I2").Value = 1
+        .Range("F1").Formula = "=RiskDiscrete(A1:A3,B1:B3)"
+        .Range("F2").Formula = "=RiskDiscrete(C1:C3,D1:D3)"
+        .Range("F3").Formula = "=(F1-32)*F2-150000"
+        .Range("F4").Formula = "=RiskNormal(100,15)"
+        .Range("F5").Formula = "=RiskNormal(0,1,RiskCorrmat(H1:I2,1))"
+        .Range("F6").Formula = "=RiskNormal(0,1,RiskCorrmat(H1:I2,2))"
+        .Range("F7").Formula = "=IF(F3<0,1,0)"
+    End With
+End Sub
+
+Private Sub AddTestOutput(XS As Worksheet, Cell As Range, ByVal OutputName As String)
+' Registers an output the same way as the Add Output button
+    Dim R As Range
+    Set R = XS.Range("RiskOutputs").CurrentRegion
+    Set R = R.Rows(R.Rows.Count).Offset(1)
+    R.Cells(1, 1).Formula = "=AddressWithSheet(" & AddressWithSheet(Cell) & ")"
+    R.Cells(1, 2).Value = OutputName
+End Sub
+
+Private Function RunSimulation(WB As Workbook) As ClsSimulation
+' Runs a simulation the same way as the Run button
+    Dim Sim As ClsSimulation
+    WB.Activate
+    Set Sim = New ClsSimulation
+    Set gSimulation = Sim
+    Sim.Run
+    Set gSimulation = Nothing
+    Set RunSimulation = Sim
+End Function
+
+'---------------------------------------------------------------------------
+' Statistics helpers
+'---------------------------------------------------------------------------
+
+Private Function ColMean(R As Variant, ByVal Col As Long) As Double
+    Dim I As Long
+    Dim S As Double
+    For I = LBound(R, 1) To UBound(R, 1)
+        S = S + R(I, Col)
+    Next I
+    ColMean = S / (UBound(R, 1) - LBound(R, 1) + 1)
+End Function
+
+Private Function ColStd(R As Variant, ByVal Col As Long) As Double
+    Dim I As Long
+    Dim M As Double
+    Dim S As Double
+    M = ColMean(R, Col)
+    For I = LBound(R, 1) To UBound(R, 1)
+        S = S + (R(I, Col) - M) ^ 2
+    Next I
+    ColStd = Sqr(S / (UBound(R, 1) - LBound(R, 1)))
+End Function
+
+Private Function ColCorrel(R As Variant, ByVal ColX As Long, ByVal ColY As Long) As Double
+    Dim I As Long
+    Dim MX As Double
+    Dim MY As Double
+    Dim SXY As Double
+    Dim SXX As Double
+    Dim SYY As Double
+    MX = ColMean(R, ColX)
+    MY = ColMean(R, ColY)
+    For I = LBound(R, 1) To UBound(R, 1)
+        SXY = SXY + (R(I, ColX) - MX) * (R(I, ColY) - MY)
+        SXX = SXX + (R(I, ColX) - MX) ^ 2
+        SYY = SYY + (R(I, ColY) - MY) ^ 2
+    Next I
+    ColCorrel = SXY / Sqr(SXX * SYY)
+End Function
+
+Private Function SameResults(A As Variant, B As Variant) As Boolean
+    Dim I As Long
+    Dim J As Long
+    SameResults = False
+    If UBound(A, 1) <> UBound(B, 1) Or UBound(A, 2) <> UBound(B, 2) Then Exit Function
+    For I = LBound(A, 1) To UBound(A, 1)
+        For J = LBound(A, 2) To UBound(A, 2)
+            If A(I, J) <> B(I, J) Then Exit Function
+        Next J
+    Next I
+    SameResults = True
+End Function
+
+'---------------------------------------------------------------------------
+' Report
+'---------------------------------------------------------------------------
+
+Private Sub CreateReport()
+    Dim WB As Workbook
+    Set WB = Workbooks.Add(xlWBATWorksheet)
+    Set mReport = WB.Worksheets(1)
+    mReport.Name = "XLRisk Self Tests"
+    With mReport
+        .Range("A1").Value = "XLRisk " & XLRISK_VERSION & " self tests"
+        .Range("A1").Font.Bold = True
+        .Range("A1").Font.Size = 14
+        .Range("A3").Value = "Group"
+        .Range("B3").Value = "Check"
+        .Range("C3").Value = "Expected"
+        .Range("D3").Value = "Obtained"
+        .Range("E3").Value = "Tolerance"
+        .Range("F3").Value = "Result"
+        .Range("A3:F3").Font.Bold = True
+    End With
+    mRow = 4
+End Sub
+
+Private Sub WriteRow(ByVal Group As String, ByVal CheckName As String, ByVal Expected As Variant, _
+                     ByVal Obtained As Variant, ByVal Tolerance As Variant, ByVal Passed As Boolean)
+    With mReport
+        .Cells(mRow, 1).Value = Group
+        .Cells(mRow, 2).Value = CheckName
+        .Cells(mRow, 3).Value = Expected
+        .Cells(mRow, 4).Value = Obtained
+        .Cells(mRow, 5).Value = Tolerance
+        With .Cells(mRow, 6)
+            .Font.Bold = True
+            .Font.Color = RGB(255, 255, 255)
+            If Passed Then
+                .Value = "PASS"
+                .Interior.Color = RGB(0, 140, 0)
+            Else
+                .Value = "FAIL"
+                .Interior.Color = RGB(200, 0, 0)
+            End If
+        End With
+    End With
+    mChecks = mChecks + 1
+    If Not Passed Then mFailures = mFailures + 1
+    mRow = mRow + 1
+End Sub
+
+Private Sub CheckNear(ByVal Group As String, ByVal CheckName As String, ByVal Expected As Double, _
+                      ByVal Obtained As Double, ByVal Tolerance As Double)
+    WriteRow Group, CheckName, Expected, Obtained, Tolerance, (Abs(Obtained - Expected) <= Tolerance)
+End Sub
+
+Private Sub CheckBelow(ByVal Group As String, ByVal CheckName As String, ByVal Limit As Double, ByVal Obtained As Double)
+    WriteRow Group, CheckName, "< " & CStr(Limit), Obtained, "", (Obtained < Limit)
+End Sub
+
+Private Sub CheckTrue(ByVal Group As String, ByVal CheckName As String, ByVal Condition As Boolean, ByVal Detail As String)
+    WriteRow Group, CheckName, "TRUE", Detail, "", Condition
+End Sub
+
+Private Sub FinishReport(ByVal Seconds As Double)
+    With mReport
+        .Range("A2").Value = mChecks & " checks, " & mFailures & " failed, " & Format(Seconds, "0") & " seconds"
+        .Columns("A:F").AutoFit
+        .Parent.Activate
+        .Activate
+    End With
+    If mFailures = 0 Then
+        MsgBox "All " & mChecks & " XLRisk self tests passed.", vbInformation, "XLRisk " & XLRISK_VERSION
+    Else
+        MsgBox mFailures & " of " & mChecks & " XLRisk self tests failed. See the report.", _
+               vbExclamation, "XLRisk " & XLRISK_VERSION
+    End If
+End Sub

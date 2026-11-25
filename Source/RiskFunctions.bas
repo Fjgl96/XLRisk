@@ -4,7 +4,7 @@ Option Base 1
 
 Public ProduceRandomSample As Boolean
 
-' TODO: Use a Rnd replacement for higher quality random number generation
+' Random numbers come from RngUniform (MRG32k3a, see the Rng module)
 
 Public Function RiskFunctionList() As Variant
 ' Returns a list of risk functions
@@ -31,7 +31,7 @@ Attribute RiskBinomial.VB_ProcData.VB_Invoke_Func = " \n20"
         RiskBinomial = 0
     ElseIf ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -69,7 +69,7 @@ Attribute RiskExpon.VB_ProcData.VB_Invoke_Func = " \n20"
     
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -111,7 +111,7 @@ Attribute RiskGamma.VB_ProcData.VB_Invoke_Func = " \n20"
     
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -137,7 +137,7 @@ Attribute RiskUniform.VB_ProcData.VB_Invoke_Func = " \n20"
     
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -182,7 +182,7 @@ Attribute RiskDiscrete.VB_ProcData.VB_Invoke_Func = " \n20"
 
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -213,7 +213,7 @@ Attribute RiskDUniform.VB_ProcData.VB_Invoke_Func = " \n20"
 
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -233,7 +233,7 @@ Attribute RiskNormal.VB_ProcData.VB_Invoke_Func = " \n20"
     
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -253,7 +253,7 @@ Attribute RiskLogNorm.VB_ProcData.VB_Invoke_Func = " \n20"
     
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -286,7 +286,7 @@ Attribute RiskTriang.VB_ProcData.VB_Invoke_Func = " \n20"
         HigherRange = Max - Mode
         TotalRange = Max - Min
         If gSimulation Is Nothing Then
-            CumulativeProb = Rnd()
+            CumulativeProb = RngUniform()
         Else
             CumulativeProb = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -316,7 +316,7 @@ Attribute RiskBeta.VB_ProcData.VB_Invoke_Func = " \n20"
     
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -402,7 +402,7 @@ Attribute RiskCumul.VB_ProcData.VB_Invoke_Func = " \n20"
     
     If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If
@@ -447,7 +447,7 @@ Attribute RiskWeibull.VB_ProcData.VB_Invoke_Func = " \n20"
     
    If ProduceRandomSample Then
         If gSimulation Is Nothing Then
-            RndValue = Rnd()
+            RndValue = RngUniform()
         Else
             RndValue = gSimulation.GetRndSample(Application.Caller)
         End If

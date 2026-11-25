@@ -1,0 +1,9 @@
+# VBA source files are imported by Excel as Windows-1252 text with CRLF line
+# endings: keep their bytes exactly as committed.
+*.bas -text
+*.cls -text
+*.frm -text
+*.doccls -text
+*.frx binary
+*.xlam binary
+*.ps1 text eol=crlf

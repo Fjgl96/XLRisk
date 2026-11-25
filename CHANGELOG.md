@@ -1,0 +1,40 @@
+# Changelog
+
+All notable changes to this fork of XLRisk are documented here.
+Versions follow [Semantic Versioning](https://semver.org). The original XLRisk by
+pyscripter has no version numbers; its last change (19 March 2025, "Fix #29") is
+treated as version 1.0.0.
+
+## [1.1.0] - unreleased
+
+### Changed
+- **Random number generator.** VBA `Rnd()`, a 24-bit linear congruential generator
+  with a period of about 16.7 million, is replaced by MRG32k3a (L'Ecuyer, 1999):
+  period of about 2^191, passes the TestU01 BigCrush battery, and gives identical
+  results on 32-bit Excel, 64-bit Excel and Excel for the Mac. The new `Rng` module
+  holds the generator.
+- Because the generator changed, a workbook with a fixed Seed gives different
+  numbers than in XLRisk 1.0. To reproduce 1.0 results, add a cell named
+  `LegacyRnd` with the value `TRUE` in the XLRisk sheet.
+
+### Fixed
+- **Seed did not reproduce simulations.** The random samples were drawn before the
+  generator was seeded, so the first run of a session and any run after a
+  recalculation with Show Samples gave different numbers for the same Seed. The
+  generator is now seeded before any sample is drawn.
+- **Latin Hypercube shuffle was not uniform.** `Shuffle` rounded the random index
+  with `CLng`, which gave the first and last positions half the probability of the
+  others. It is now a standard Fisher-Yates shuffle. In tests the old shuffle did not
+  create measurable correlation between independent inputs, but the permutation
+  was biased.
+
+### Added
+- `XLRiskVersion()` worksheet function and `XLRISK_VERSION` constant.
+- Self tests (`SelfTests` module, macro `XLRiskSelfTests`): reference values of the
+  generator, uniformity, shuffle, and a full simulation of a model with known exact
+  results, including reproducibility with a fixed Seed. See `tests/README.md`.
+- `tests/reference/mrg32k3a_reference.py`: regenerates every reference value of the
+  self tests outside Excel.
+- `build/build.ps1` builds `dist/XLRisk.xlam` from `Source/` and writes its SHA-256
+  checksum; `build/export.ps1` exports code edited in the VBA editor back to `Source/`.
+- `.gitattributes` keeps the VBA files with Windows line endings.
