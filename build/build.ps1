@@ -47,6 +47,7 @@ $target = Join-Path (Resolve-Path $OutDir) 'XLRisk.xlam'
 Copy-Item -Path $BaseAddin -Destination $target -Force
 Unblock-File -Path $target
 
+Write-Host "build.ps1 revision 5 (2026-11-25)"
 Write-Host "Building $target from $($sourceFiles.Count) source files"
 
 # Excel only lets scripts change VBA code when "Trust access to the VBA project
@@ -80,6 +81,15 @@ function Get-CodeComponents($Components) {
     return ,$result
 }
 
+# Calls a COM member directly through IDispatch. PowerShell's own adapter turns
+# the VBComponents collection into a fixed-size array, so Remove and Import fail
+# ("The collection is of a fixed size") when called the normal way.
+$getProperty = [System.Reflection.BindingFlags]::GetProperty
+$invokeMethod = [System.Reflection.BindingFlags]::InvokeMethod
+function Invoke-ComMember($Target, [string]$Name, [System.Reflection.BindingFlags]$Kind, [object[]]$Arguments) {
+    [System.__ComObject].InvokeMember($Name, $Kind, $null, $Target, $Arguments)
+}
+
 # Returns the VBA project of a workbook. The function returns the project and not
 # its VBComponents: PowerShell would unroll a returned collection into a plain
 # fixed-size array, which has no working Remove or Import.
@@ -104,12 +114,14 @@ try {
     # Pass 1: remove the old code modules
     $wb = $excel.Workbooks.Open($target)
     $project = Get-VBProject $wb
-    $components = $project.VBComponents
+    # Read the collection inline: returned from a function, PowerShell would unroll it
+    $components = [System.__ComObject].InvokeMember('VBComponents', $getProperty, $null, $project, $null)
+    if ($components -is [array]) { throw 'VBComponents arrived as a plain array; cannot edit the project.' }
     $old = Get-CodeComponents $components
     if ($old.Count -eq 0) { throw "No code modules found in $($BaseAddin): is it the XLRisk add-in?" }
     foreach ($component in $old) {
         Write-Host "  removing $($component.Name)"
-        $components.Remove($component)
+        $null = Invoke-ComMember $components 'Remove' $invokeMethod @(,$component)
     }
     $wb.Save()
     $wb.Close($false)
@@ -118,10 +130,12 @@ try {
     # Pass 2: import the source files
     $wb = $excel.Workbooks.Open($target)
     $project = Get-VBProject $wb
-    $components = $project.VBComponents
+    # Read the collection inline: returned from a function, PowerShell would unroll it
+    $components = [System.__ComObject].InvokeMember('VBComponents', $getProperty, $null, $project, $null)
+    if ($components -is [array]) { throw 'VBComponents arrived as a plain array; cannot edit the project.' }
     foreach ($file in $sourceFiles) {
         Write-Host "  importing $($file.Name)"
-        $null = $components.Import($file.FullName)
+        $null = Invoke-ComMember $components 'Import' $invokeMethod @($file.FullName)
     }
 
     # Every source file must give exactly one module with the same name
