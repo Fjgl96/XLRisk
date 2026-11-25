@@ -5,6 +5,7 @@ commercial add-ins such as @RISK.
 
 **[⬇ Download XLRisk 1.1.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)** ·
 **[Manual en español](docs/manual-es.md)** ([Excel](docs/XLRisk_Manual_ES.xlsx)) ·
+**[Test workbooks](examples/)** ([basic](examples/XLRisk_Prueba_Basica.xlsx), [multi-variable](examples/XLRisk_Prueba_Multivariable.xlsx)) ·
 [Changelog](CHANGELOG.md)
 
 *Requires Excel 2013 or later. Excel 2016 or newer is recommended.*
@@ -92,6 +93,8 @@ XLRisk es un complemento gratuito y open source para simulación Monte Carlo en 
 libros del XLRisk original. **[Descarga la versión 1.1.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)**
 y sigue el **[manual en español](docs/manual-es.md)**, que también está como
 **[libro de Excel](docs/XLRisk_Manual_ES.xlsx)** con un modelo de ejemplo listo para simular.
+Para probarlo hay dos libros listos para correr (solo abrir y pulsar Run): uno
+**[básico](examples/XLRisk_Prueba_Basica.xlsx)** y uno **[multivariable](examples/XLRisk_Prueba_Multivariable.xlsx)**.
 
 ## Credits
 XLRisk was created by [pyscripter](https://github.com/pyscripter) (Kiriakos Vlahos). He thanks the
