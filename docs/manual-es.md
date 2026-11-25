@@ -78,6 +78,7 @@ Todas las funciones de distribución aceptan `RiskCorrmat` como último argument
 | Latin Hypercube | VERDADERO | Muestreo estratificado. Converge más rápido que el muestreo simple; conviene dejarlo activo. |
 | Calculate data tables | VERDADERO | Recalcular las tablas de datos de Excel en cada iteración. |
 | Macro before / after | (vacío) | Nombre de una macro a correr antes o después de cada iteración, o al terminar la simulación. |
+| RecalcOtherWorkbooks (opcional, desde 1.2) | no existe | Desde la versión 1.2, durante la simulación los demás libros abiertos dejan de recalcularse, lo que acelera mucho la corrida. Una celda con nombre RecalcOtherWorkbooks = VERDADERO vuelve al comportamiento anterior. |
 | LegacyRnd (opcional) | no existe | Si agregas una celda con nombre LegacyRnd = VERDADERO, se usa el generador Rnd() de VBA del XLRisk original, para reproducir resultados antiguos. |
 
 ## Cómo leer los resultados

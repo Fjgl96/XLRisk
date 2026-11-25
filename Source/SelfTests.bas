@@ -217,6 +217,9 @@ Private Sub TestSimulation()
     CheckNear G, "RiskNormal(100, 15): mean", 100#, ColMean(Res1, C + 2), 0.64
     CheckNear G, "RiskNormal(100, 15): standard deviation", 15#, ColStd(Res1, C + 2), 0.45
     CheckNear G, "Correlation induced by RiskCorrmat (target 0.7)", 0.7, ColCorrel(Res1, C + 3, C + 4), 0.03
+    WriteInfo G, "Seconds for " & Format(SIM_ITERATIONS, "#,##0") & " iterations", Sim.LoopSeconds
+    CheckTrue G, "Other open workbooks recalculate again after the run", _
+              mReport.EnableCalculation, IIf(mReport.EnableCalculation, "restored", "still suspended")
 
     ' Second run with the same seed must reproduce every number
     Set Sim = RunSimulation(WB)
@@ -382,6 +385,22 @@ Private Sub WriteRow(ByVal Group As String, ByVal CheckName As String, ByVal Exp
     End With
     mChecks = mChecks + 1
     If Not Passed Then mFailures = mFailures + 1
+    mRow = mRow + 1
+End Sub
+
+Private Sub WriteInfo(ByVal Group As String, ByVal Label As String, ByVal Value As Variant)
+' Informative row: not counted as a check
+    With mReport
+        .Cells(mRow, 1).Value = Group
+        .Cells(mRow, 2).Value = Label
+        .Cells(mRow, 4).Value = Value
+        With .Cells(mRow, 6)
+            .Value = "INFO"
+            .Font.Bold = True
+            .Font.Color = RGB(255, 255, 255)
+            .Interior.Color = RGB(31, 56, 100)
+        End With
+    End With
     mRow = mRow + 1
 End Sub
 

@@ -27,8 +27,14 @@ Private mRiskInputs As Collection
 Private mRiskOutputs As Collection
 Private mInputGroups As Collection
 Private mCurrentIteration As Long
+' Sheets of other open workbooks whose recalculation is suspended during the simulation
+Private mSuspendedSheets As Collection
+Private mRecalcOtherWorkbooks As Boolean
+Private mLoopSeconds As Double
 
 Private Const NoCorrelationGroupName As String = "No Correlation"
+' How often the status bar is refreshed and Excel processes the Stop button
+Private Const REFRESH_SECONDS As Double = 0.25
 
 Property Get ActiveWorkBook() As Workbook
     Set ActiveWorkBook = mWB
@@ -45,6 +51,11 @@ End Property
 
 Property Get OutputCount() As Long
     If Not mRiskOutputs Is Nothing Then OutputCount = mRiskOutputs.Count
+End Property
+
+Property Get LoopSeconds() As Double
+' Seconds taken by the iterations of the last run (without producing the results sheet)
+    LoopSeconds = mLoopSeconds
 End Property
 
 Property Get ProcessingCorrmatInfo() As Boolean
@@ -68,8 +79,44 @@ Private Sub Class_Initialize()
     ' Optional setting: TRUE goes back to VBA Rnd() (results of XLRisk 1.0)
     UseLegacyRnd = False
     UseLegacyRnd = XLRisk.Range("LegacyRnd").Value
+    ' Optional setting: TRUE keeps recalculating the other open workbooks in every iteration
+    mRecalcOtherWorkbooks = False
+    mRecalcOtherWorkbooks = XLRisk.Range("RecalcOtherWorkbooks").Value
     mCurrentIteration = 0
     mProcessingCorrmatInfo = False
+End Sub
+
+Private Sub SuspendOtherWorkbooks()
+' Stops the recalculation of the sheets of every other open workbook.
+' Only the sheets that were calculating are recorded, so that exactly those are restored.
+    Dim WB As Workbook
+    Dim WS As Worksheet
+
+    Set mSuspendedSheets = New Collection
+    If mRecalcOtherWorkbooks Then Exit Sub
+    On Error Resume Next
+    For Each WB In Application.Workbooks
+        If Not WB Is mWB Then
+            For Each WS In WB.Worksheets
+                If WS.EnableCalculation Then
+                    WS.EnableCalculation = False
+                    If Not WS.EnableCalculation Then mSuspendedSheets.Add WS
+                End If
+            Next WS
+        End If
+    Next WB
+End Sub
+
+Private Sub ResumeOtherWorkbooks()
+' Restores the recalculation of the sheets suspended by SuspendOtherWorkbooks
+    Dim Item As Variant
+
+    If mSuspendedSheets Is Nothing Then Exit Sub
+    On Error Resume Next
+    For Each Item In mSuspendedSheets
+        Item.EnableCalculation = True
+    Next Item
+    Set mSuspendedSheets = Nothing
 End Sub
 
 Private Sub SimIteration(Iter As Long)
@@ -120,6 +167,9 @@ Public Sub Run()
     Dim SimResults As ClsSimResults
     Dim InputGroup As ClsInputGroup
     Dim RiskInput As ClsRiskInput
+    Dim StartTime As Double
+    Dim LastRefresh As Double
+    Dim CurrentTime As Double
     
     ' Save ProduceRandomSample
     OldProduceRandomSample = ProduceRandomSample
@@ -157,6 +207,9 @@ Public Sub Run()
     'Setup Risk Input Groups
     Set mInputGroups = New Collection
     
+    ' Application.Calculate recalculates every open workbook, but the model lives only in mWB
+    SuspendOtherWorkbooks
+
     ' Do a full calculation and process correlation information
     mProcessingCorrmatInfo = True
     Application.CalculateFull
@@ -193,6 +246,8 @@ Public Sub Run()
     ReDim mSimResults(1 To mIterations, 1 To 1 + mRiskInputs.Count + mRiskOutputs.Count)
     ' Set up Risk InputGroups
       
+    StartTime = Timer
+    LastRefresh = StartTime
     For Iter = 1 To mIterations
         mCurrentIteration = Iter
         If mSimError Then
@@ -201,16 +256,24 @@ Public Sub Run()
             Exit For
         End If
         SimIteration Iter
-        DoEvents
+        ' Refresh the status bar and let Excel process the Stop button a few times
+        ' per second, instead of in every iteration
+        CurrentTime = Timer
+        If CurrentTime - LastRefresh >= REFRESH_SECONDS Or CurrentTime < LastRefresh Or Iter = mIterations Then
+            Application.StatusBar = "Iteration: " & CStr(Iter) & "/" & CStr(mIterations)
+            DoEvents
+            LastRefresh = CurrentTime
+        End If
         'Check whether to Stop
         If UserStopped Then
             UserStopped = False
             MsgBox "The simulation was interrupted"
             GoTo RestoreExcel
         End If
-        Application.StatusBar = "Iteration: " & CStr(Iter) & "/" & CStr(mIterations)
     Next Iter
     mCurrentIteration = 0
+    mLoopSeconds = Timer - StartTime
+    If mLoopSeconds < 0 Then mLoopSeconds = mLoopSeconds + 86400#  ' run crossed midnight
     
     Set SimResults = New ClsSimResults
     SimResults.Init mRiskInputs, mRiskOutputs, mIterations, mSimResults
@@ -221,6 +284,9 @@ Public Sub Run()
 RestoreExcel:
     'Restore ProduceRandomSample
     ProduceRandomSample = OldProduceRandomSample
+    
+    'Let the other open workbooks recalculate again
+    ResumeOtherWorkbooks
     
     'Restore Calculation Mode
     Application.Calculation = AppCalculation
