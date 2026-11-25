@@ -14,7 +14,7 @@ También está como libro de Excel, con el ejemplo listo para simular: [XLRisk_M
 
 | Paso | Qué hacer |
 | --- | --- |
-| Descargar | Baja XLRisk.xlam desde https://github.com/Fjgl96/XLRisk/releases/latest (sección Assets). |
+| Descargar | Baja XLRisk.xlam desde https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam. |
 | Desbloquear | Clic derecho en el archivo > Propiedades > marca Desbloquear > Aceptar. Sin esto Excel lo abre en Vista protegida y no carga. |
 | Copiar a la carpeta de complementos | Cópialo a %APPDATA%\Microsoft\AddIns. Es una ubicación de confianza de Excel, así que no vuelve a bloquearse. |
 | Activar en Excel | Desarrollador > Complementos de Excel > Examinar > elige XLRisk.xlam > Aceptar. Si tenías una versión anterior, desmárcala primero. Aparece la pestaña XLRisk en la cinta. |

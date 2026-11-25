@@ -3,7 +3,7 @@ XLRisk is an Excel add-in for [Monte Carlo simulation](https://en.wikipedia.org/
 It is **free and open source** and **compatible with Excel for the Mac**. It works in a similar fashion to
 commercial add-ins such as @RISK.
 
-**[⬇ Download XLRisk 1.1.0](https://github.com/Fjgl96/XLRisk/releases/latest)** ·
+**[⬇ Download XLRisk 1.1.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)** ·
 **[Manual en español](docs/manual-es.md)** ([Excel](docs/XLRisk_Manual_ES.xlsx)) ·
 [Changelog](CHANGELOG.md)
 
@@ -33,7 +33,7 @@ workbooks.
 * Statistics, percentiles, histograms, cumulative distributions and tornado diagrams
 
 ## Install
-1. Download `XLRisk.xlam` from the [latest release](https://github.com/Fjgl96/XLRisk/releases/latest).
+1. Download [`XLRisk.xlam`](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam) (SHA-256 `e35b406e46ed0241def86ded4f256098bf371b0c01c2e4aa76d37ee243aa8369`).
 2. Windows: right click the file > Properties > tick **Unblock** > OK. Otherwise Excel opens it in
    Protected View and it does not load.
 3. Copy it to `%APPDATA%\Microsoft\AddIns` (a trusted location for Excel).
@@ -89,7 +89,7 @@ check it with the self tests in [`tests/README.md`](tests/README.md). The Spanis
 
 ## En español
 XLRisk es un complemento gratuito y open source para simulación Monte Carlo en Excel, compatible con los
-libros del XLRisk original. **[Descarga la versión 1.1.0](https://github.com/Fjgl96/XLRisk/releases/latest)**
+libros del XLRisk original. **[Descarga la versión 1.1.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)**
 y sigue el **[manual en español](docs/manual-es.md)**, que también está como
 **[libro de Excel](docs/XLRisk_Manual_ES.xlsx)** con un modelo de ejemplo listo para simular.
 

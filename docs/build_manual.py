@@ -13,7 +13,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 VERSION = "1.1.0"
 REPO = "https://github.com/Fjgl96/XLRisk"
-RELEASE = f"{REPO}/releases/latest"
+RELEASE = f"{REPO}/raw/master/XLRisk.xlam"
 HERE = Path(__file__).resolve().parent
 
 # ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ INTRO = [
 ]
 
 INSTALL = [
-    ("Descargar", f"Baja XLRisk.xlam desde {RELEASE} (sección Assets)."),
+    ("Descargar", f"Baja XLRisk.xlam desde {RELEASE}."),
     ("Desbloquear", "Clic derecho en el archivo > Propiedades > marca Desbloquear > Aceptar. Sin esto Excel lo "
                     "abre en Vista protegida y no carga."),
     ("Copiar a la carpeta de complementos", "Cópialo a %APPDATA%\\Microsoft\\AddIns. Es una ubicación de "
