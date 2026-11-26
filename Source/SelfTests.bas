@@ -200,8 +200,8 @@ Private Sub TestSimulation()
 
     ' First run
     Set Sim = RunSimulation(WB)
-    If Sim.OutputCount <> 5 Then
-        WriteRow G, "Simulation found the 5 test outputs", 5, Sim.OutputCount, 0, False
+    If Sim.OutputCount <> 8 Then
+        WriteRow G, "Simulation found the 8 test outputs", 8, Sim.OutputCount, 0, False
         WB.Close SaveChanges:=False
         Exit Sub
     End If
@@ -218,6 +218,21 @@ Private Sub TestSimulation()
     CheckNear G, "RiskNormal(100, 15): standard deviation", 15#, ColStd(Res1, C + 2), 0.45
     CheckNear G, "Correlation induced by RiskCorrmat (target 0.7)", 0.7, ColCorrel(Res1, C + 3, C + 4), 0.03
     WriteInfo G, "Seconds for " & Format(SIM_ITERATIONS, "#,##0") & " iterations", Sim.LoopSeconds
+
+    ' Functions with the same names as in @RISK
+    Const F As String = "@RISK functions"
+    CheckNear F, "RiskOutput(""Name"") in a formula adds the output", ColMean(Res1, C + 1), ColMean(Res1, C + 6), 0.000001
+    CheckNear F, "RiskPoisson(4): mean", 4#, ColMean(Res1, C + 7), 0.09
+    CheckNear F, "RiskLognorm2(0, 0.25): mean", 1.0317434074991, ColMean(Res1, C + 8), 0.012
+    CheckNear F, "RiskMean(cell)", ColMean(Res1, C + 1), CellNumber(WS.Range("K1")), 0.001
+    CheckNear F, "RiskStdDev(cell)", ColStd(Res1, C + 1), CellNumber(WS.Range("K2")), 0.001
+    CheckNear F, "RiskMin(cell)", WorksheetFunction.Min(ColValues(Res1, C + 1)), CellNumber(WS.Range("K3")), 0.001
+    CheckNear F, "RiskMax(cell)", WorksheetFunction.Max(ColValues(Res1, C + 1)), CellNumber(WS.Range("K4")), 0.001
+    CheckNear F, "RiskPercentile(cell, 0.5)", _
+              WorksheetFunction.Percentile_Inc(ColValues(Res1, C + 1), 0.5), CellNumber(WS.Range("K5")), 0.001
+    CheckNear F, "RiskTarget(cell, 0) = probability of loss", ColMean(Res1, C + 5), CellNumber(WS.Range("K6")), 0.000001
+    CheckTrue F, "Statistics of a cell without results return #N/A", IsError(WS.Range("K7").Value), _
+              IIf(IsError(WS.Range("K7").Value), "#N/A", "a value")
     CheckTrue G, "Other open workbooks recalculate again after the run", _
               mReport.EnableCalculation, IIf(mReport.EnableCalculation, "restored", "still suspended")
 
@@ -262,6 +277,18 @@ Private Sub BuildModel(WS As Worksheet)
         .Range("F5").Formula = "=RiskNormal(0,1,RiskCorrmat(H1:I2,1))"
         .Range("F6").Formula = "=RiskNormal(0,1,RiskCorrmat(H1:I2,2))"
         .Range("F7").Formula = "=IF(F3<0,1,0)"
+        ' Outputs marked in the formula, as in @RISK
+        .Range("F8").Formula = "=RiskOutput(""ProfitCopy"")+F3"
+        .Range("F9").Formula = "=RiskOutput(""Poisson"")+RiskPoisson(4)"
+        .Range("F10").Formula = "=RiskOutput(""LN2"")+RiskLognorm2(0,0.25)"
+        ' Statistics of the latest simulation
+        .Range("K1").Formula = "=RiskMean(F3)"
+        .Range("K2").Formula = "=RiskStdDev(F3)"
+        .Range("K3").Formula = "=RiskMin(F3)"
+        .Range("K4").Formula = "=RiskMax(F3)"
+        .Range("K5").Formula = "=RiskPercentile(F3,0.5)"
+        .Range("K6").Formula = "=RiskTarget(F3,0)"
+        .Range("K7").Formula = "=RiskMean(A1)"
     End With
 End Sub
 
@@ -324,6 +351,26 @@ Private Function ColCorrel(R As Variant, ByVal ColX As Long, ByVal ColY As Long)
         SYY = SYY + (R(I, ColY) - MY) ^ 2
     Next I
     ColCorrel = SXY / Sqr(SXX * SYY)
+End Function
+
+Private Function ColValues(R As Variant, ByVal Col As Long) As Variant
+' One column of the results as a 1-based array of Doubles
+    Dim I As Long
+    Dim V() As Double
+    ReDim V(1 To UBound(R, 1) - LBound(R, 1) + 1)
+    For I = LBound(R, 1) To UBound(R, 1)
+        V(I - LBound(R, 1) + 1) = R(I, Col)
+    Next I
+    ColValues = V
+End Function
+
+Private Function CellNumber(Cell As Range) As Double
+' Value of a cell, or a value that fails every check when the cell holds an error
+    If IsError(Cell.Value) Or Not IsNumeric(Cell.Value) Then
+        CellNumber = -1E+300
+    Else
+        CellNumber = Cell.Value
+    End If
 End Function
 
 Private Function SameResults(A As Variant, B As Variant) As Boolean

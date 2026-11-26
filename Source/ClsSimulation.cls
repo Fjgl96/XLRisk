@@ -31,6 +31,7 @@ Private mCurrentIteration As Long
 Private mSuspendedSheets As Collection
 Private mRecalcOtherWorkbooks As Boolean
 Private mLoopSeconds As Double
+Private mRunning As Boolean
 
 Private Const NoCorrelationGroupName As String = "No Correlation"
 ' How often the status bar is refreshed and Excel processes the Stop button
@@ -51,6 +52,10 @@ End Property
 
 Property Get OutputCount() As Long
     If Not mRiskOutputs Is Nothing Then OutputCount = mRiskOutputs.Count
+End Property
+
+Property Get IsRunning() As Boolean
+    IsRunning = mRunning
 End Property
 
 Property Get LoopSeconds() As Double
@@ -171,6 +176,9 @@ Public Sub Run()
     Dim LastRefresh As Double
     Dim CurrentTime As Double
     
+    ' Statistics functions (RiskMean...) return #N/A while the simulation runs
+    mRunning = True
+
     ' Save ProduceRandomSample
     OldProduceRandomSample = ProduceRandomSample
     
@@ -287,6 +295,10 @@ RestoreExcel:
     
     'Let the other open workbooks recalculate again
     ResumeOtherWorkbooks
+
+    'Statistics functions read the new results in the final recalculation
+    mRunning = False
+    gResultsRevision = gResultsRevision + 1
     
     'Restore Calculation Mode
     Application.Calculation = AppCalculation

@@ -1,4 +1,4 @@
-# XLRisk 1.1.0: manual en español
+# XLRisk 1.2.0: manual en español
 
 XLRisk es un complemento gratuito y de código abierto para hacer simulación Monte Carlo en Excel.
 
@@ -6,7 +6,7 @@ Convierte un modelo determinístico (un solo escenario) en uno probabilístico: 
 
 Ejemplo: en vez de "la utilidad será S/ 30,000", el modelo dice "la utilidad esperada es S/ 28,850 y hay 35% de probabilidad de pérdida".
 
-Este manual corresponde a la versión 1.1.0 del fork https://github.com/Fjgl96/XLRisk, compatible con los libros hechos con el XLRisk original.
+Este manual corresponde a la versión 1.2.0 del fork https://github.com/Fjgl96/XLRisk, compatible con los libros hechos con el XLRisk original.
 
 También está como libro de Excel, con el ejemplo listo para simular: [XLRisk_Manual_ES.xlsx](XLRisk_Manual_ES.xlsx).
 
@@ -18,7 +18,7 @@ También está como libro de Excel, con el ejemplo listo para simular: [XLRisk_M
 | Desbloquear | Clic derecho en el archivo > Propiedades > marca Desbloquear > Aceptar. Sin esto Excel lo abre en Vista protegida y no carga. |
 | Copiar a la carpeta de complementos | Cópialo a %APPDATA%\Microsoft\AddIns. Es una ubicación de confianza de Excel, así que no vuelve a bloquearse. |
 | Activar en Excel | Desarrollador > Complementos de Excel > Examinar > elige XLRisk.xlam > Aceptar. Si tenías una versión anterior, desmárcala primero. Aparece la pestaña XLRisk en la cinta. |
-| Verificar | En cualquier celda escribe =XLRiskVersion(). Debe devolver 1.1.0. |
+| Verificar | En cualquier celda escribe =XLRiskVersion(). Devuelve la versión instalada, por ejemplo 1.2.0. |
 
 ## Paso a paso
 
@@ -26,7 +26,7 @@ También está como libro de Excel, con el ejemplo listo para simular: [XLRisk_M
 | --- | --- |
 | 1. Setup | Crea la hoja XLRisk en el libro, con la configuración y la lista de inputs y outputs. También abre el formulario de opciones. |
 | 2. Definir inputs | Reemplaza cada supuesto incierto por una función de riesgo. Ejemplo: el precio 50 pasa a =RiskTriang(45, 50, 56). |
-| 3. Definir outputs | Selecciona la celda resultado (utilidad, VAN, caja) y pulsa Add Output. Le pones un nombre. Puedes tener varios outputs. |
+| 3. Definir outputs | Selecciona la celda resultado (utilidad, VAN, caja) y pulsa Add Output. Le pones un nombre. Desde la versión 1.2 también puedes escribirlo en la fórmula, como en @RISK: =RiskOutput("Utilidad") + ... Puedes tener varios outputs. |
 | 4. Iteraciones y semilla | Elige las iteraciones en la cinta (1,000 a 10,000). Con una semilla distinta de 0 en la hoja XLRisk, la simulación se puede reproducir exacta. |
 | 5. Run | Corre la simulación. Stop la detiene. Al terminar crea una hoja de resultados nueva. |
 
@@ -40,6 +40,40 @@ También está como libro de Excel, con el ejemplo listo para simular: [XLRisk_M
 | Add Output | Registra la celda o rango seleccionado como output. |
 | Run / Stop | Corre o detiene la simulación. |
 | Help / About | Ayuda en línea y versión. |
+
+## Ejemplos ilustrados
+
+### Convertir un supuesto en una distribución
+
+![Convertir un supuesto en una distribución](img/01_supuesto.png)
+
+### Escenarios con su probabilidad: RiskDiscrete
+
+![Escenarios con su probabilidad: RiskDiscrete](img/02_escenarios.png)
+
+### Hacer que dos supuestos se muevan juntos: RiskCorrmat
+
+![Hacer que dos supuestos se muevan juntos: RiskCorrmat](img/03_correlacion.png)
+
+### Marcar el resultado con Add Output
+
+![Marcar el resultado con Add Output](img/04_output_boton.png)
+
+### Marcar el resultado desde la fórmula: RiskOutput (versión 1.2)
+
+![Marcar el resultado desde la fórmula: RiskOutput (versión 1.2)](img/05_riskoutput.png)
+
+### Traer los resultados a las celdas (versión 1.2)
+
+![Traer los resultados a las celdas (versión 1.2)](img/06_estadisticas.png)
+
+### La hoja XLRisk
+
+![La hoja XLRisk](img/07_hoja_xlrisk.png)
+
+### Leer la hoja de resultados
+
+![Leer la hoja de resultados](img/08_resultados.png)
 
 ## Funciones
 
@@ -62,11 +96,18 @@ Todas las funciones de distribución aceptan `RiskCorrmat` como último argument
 | `RiskWeibull(alfa, beta)` | alfa = forma, beta = escala. | beta x GAMMA(1 + 1/alfa) | Vida útil y tiempo hasta falla de activos. | `=RiskWeibull(1.5, 1000)` |
 | `RiskBeta(alfa, beta, [A], [B])` | alfa y beta = forma; A y B = mínimo y máximo (por defecto 0 y 1). | A + alfa / (alfa + beta) x (B - A) | Proporciones y tasas acotadas: tasa de conversión, porcentaje de recupero. | `=RiskBeta(2, 8)` |
 | `RiskCumul(min, max, valoresX, probAcum)` | Curva acumulada por tramos. valoresX crecientes y dentro de (min, max); probAcum crecientes. | media de la curva definida | Cuando el experto da percentiles: "10% de que sea menos de X". | `=RiskCumul(0, 100, B2:B4, C2:C4)` |
+| `RiskPoisson(lambda)` | Promedio de eventos en el periodo. Desde la versión 1.2. | lambda | Cantidad de eventos en un periodo: reclamos, fallas, pedidos urgentes. | `=RiskPoisson(4)` |
+| `RiskLognorm2(mu, sigma)` | Igual que RiskLogNorm: media y desviación de LN(X). Nombre de @RISK. Desde la versión 1.2. | EXP(mu + sigma^2 / 2) | Modelos traídos de @RISK que usan RiskLognorm2. | `=RiskLognorm2(1.321, 0.040)` |
+| `RiskOutput([nombre])` | Nombre opcional del output. Devuelve 0. Desde la versión 1.2. | 0 (no cambia la fórmula) | Marcar un output desde su fórmula, como en @RISK, sin usar Add Output. | `=RiskOutput("Utilidad") + (B2-B4)*B3-B5` |
+| `RiskMean(celda)` | Celda output o input. Desde la versión 1.2. | media de la última simulación (#N/A si no hay) | Traer el resultado esperado a un reporte o dashboard. | `=RiskMean(B6)` |
+| `RiskStdDev(celda), RiskMin(celda), RiskMax(celda)` | Celda output o input. Desde la versión 1.2. | desviación, mínimo y máximo de la última simulación | Mostrar la dispersión y el rango completo. | `=RiskMin(B6)` |
+| `RiskPercentile(celda, p)  (alias RiskPtoX)` | p entre 0 y 1. Desde la versión 1.2. | valor en el percentil p | P5, P50, P95 para presentar el rango con cierta confianza. | `=RiskPercentile(B6, 0.05)` |
+| `RiskTarget(celda, valor)  (alias RiskXtoP)` | Valor objetivo. Desde la versión 1.2. | probabilidad de quedar en el valor o por debajo | Probabilidad de pérdida (valor 0) o de no llegar a la meta. | `=RiskTarget(B6, 0)` |
 | `RiskCorrmat(matriz, posición)` | Se pone como ÚLTIMO argumento de otra función. matriz = rango de correlaciones; posición = fila de esa variable en la matriz. | no aplica | Hacer que dos o más supuestos se muevan juntos (precio y cantidad, ventas de dos productos). | `=RiskNormal(100, 15, RiskCorrmat($H$2:$I$3, 1))` |
 | `RiskIsValidCorrmat(matriz)` | Rango de correlaciones. | VERDADERO o FALSO | Verificar que la matriz sea válida (simétrica, diagonal 1, semidefinida positiva). | `=RiskIsValidCorrmat(H2:I3)` |
 | `RiskCorrectCorrmat(matriz)` | Rango de correlaciones. Se ingresa como fórmula matricial del mismo tamaño. | matriz corregida | Corregir una matriz que no es válida, con el menor cambio posible. | `=RiskCorrectCorrmat(H2:I3)` |
 | `RiskSCorrel(rango1, rango2)` | Dos rangos del mismo tamaño. | correlación de Spearman | Medir la correlación de rangos entre dos series. | `=RiskSCorrel(A2:A101, B2:B101)` |
-| `XLRiskVersion()` | Sin argumentos. | "1.1.0" | Confirmar qué versión del complemento está cargada. | `=XLRiskVersion()` |
+| `XLRiskVersion()` | Sin argumentos. | "1.2.0" | Confirmar qué versión del complemento está cargada. | `=XLRiskVersion()` |
 
 ## Configuración: la hoja XLRisk
 
@@ -130,15 +171,17 @@ Conviene correrlas después de instalar una versión nueva.
 
 ## XLRisk frente a @RISK
 
-| Capacidad | @RISK | XLRisk 1.1.0 |
+| Capacidad | @RISK | XLRisk 1.2.0 |
 | --- | --- | --- |
-| Distribuciones | Más de 90 | 15 (ver hoja Funciones) |
+| Distribuciones | Más de 90 | 17 (ver hoja Funciones) |
 | Latin Hypercube y correlaciones (Iman-Conover) | Sí | Sí |
-| Semilla reproducible | Sí | Sí, desde la versión 1.1.0 |
+| Semilla reproducible | Sí | Sí, desde la versión 1.2.0 |
 | Histogramas, percentiles, tornado | Sí | Sí |
-| `RiskOutput dentro de la fórmula` | Sí | No: se usa el botón Add Output (roadmap Fase 1) |
-| `RiskMean, RiskPercentile, RiskTarget en celda` | Sí | No: se leen de la hoja de resultados (Fase 1) |
+| `RiskOutput dentro de la fórmula` | Sí | Sí, desde la versión 1.2 |
+| `RiskMean, RiskStdDev, RiskPercentile, RiskTarget en celda` | Sí | Sí, desde la versión 1.2 |
+| `RiskLognorm2 (parámetros de LN(X))` | Sí | Sí, desde la versión 1.2 (y RiskLogNorm, igual) |
 | `RiskLognorm(media, desv) de la variable` | Sí | No: RiskLogNorm usa los parámetros de LN(X) |
+| Simulación sin recalcular otros libros abiertos | Sí | Sí, desde la versión 1.2 |
 | Escenarios en una corrida (RiskSimtable) | Sí | No (Fase 2) |
 | Ajuste de distribuciones a datos | Sí | No (Fase 3) |
 | Precio | US$ 2,900 a 3,500 por licencia | Gratis, código abierto (licencia MIT) |

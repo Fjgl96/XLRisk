@@ -9,9 +9,11 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.drawing.image import Image as XLImage
 
-VERSION = "1.1.0"
+import illustrations
+
+VERSION = "1.2.0"
 REPO = "https://github.com/Fjgl96/XLRisk"
 RELEASE = f"{REPO}/raw/master/XLRisk.xlam"
 HERE = Path(__file__).resolve().parent
@@ -39,7 +41,7 @@ INSTALL = [
                     "confianza de Excel, así que no vuelve a bloquearse."),
     ("Activar en Excel", "Desarrollador > Complementos de Excel > Examinar > elige XLRisk.xlam > Aceptar. Si "
                     "tenías una versión anterior, desmárcala primero. Aparece la pestaña XLRisk en la cinta."),
-    ("Verificar", f"En cualquier celda escribe =XLRiskVersion(). Debe devolver {VERSION}."),
+    ("Verificar", "En cualquier celda escribe =XLRiskVersion(). Devuelve la versión instalada, por ejemplo 1.2.0."),
 ]
 
 WORKFLOW = [
@@ -48,7 +50,8 @@ WORKFLOW = [
     ("2. Definir inputs", "Reemplaza cada supuesto incierto por una función de riesgo. Ejemplo: el precio 50 "
                  "pasa a =RiskTriang(45, 50, 56)."),
     ("3. Definir outputs", "Selecciona la celda resultado (utilidad, VAN, caja) y pulsa Add Output. Le pones un "
-                 "nombre. Puedes tener varios outputs."),
+                 "nombre. Desde la versión 1.2 también puedes escribirlo en la fórmula, como en @RISK: "
+                 "=RiskOutput(\"Utilidad\") + ... Puedes tener varios outputs."),
     ("4. Iteraciones y semilla", "Elige las iteraciones en la cinta (1,000 a 10,000). Con una semilla distinta "
                  "de 0 en la hoja XLRisk, la simulación se puede reproducir exacta."),
     ("5. Run", "Corre la simulación. Stop la detiene. Al terminar crea una hoja de resultados nueva."),
@@ -142,6 +145,41 @@ FUNCTIONS = [
      "media de la curva definida",
      "Cuando el experto da percentiles: \"10% de que sea menos de X\".",
      "=RiskCumul(0, 100, B2:B4, C2:C4)"),
+    ("RiskPoisson", "RiskPoisson(lambda)",
+     "Promedio de eventos en el periodo. Desde la versión 1.2.",
+     "lambda",
+     "Cantidad de eventos en un periodo: reclamos, fallas, pedidos urgentes.",
+     "=RiskPoisson(4)"),
+    ("RiskLognorm2", "RiskLognorm2(mu, sigma)",
+     "Igual que RiskLogNorm: media y desviación de LN(X). Nombre de @RISK. Desde la versión 1.2.",
+     "EXP(mu + sigma^2 / 2)",
+     "Modelos traídos de @RISK que usan RiskLognorm2.",
+     "=RiskLognorm2(1.321, 0.040)"),
+    ("RiskOutput", "RiskOutput([nombre])",
+     "Nombre opcional del output. Devuelve 0. Desde la versión 1.2.",
+     "0 (no cambia la fórmula)",
+     "Marcar un output desde su fórmula, como en @RISK, sin usar Add Output.",
+     "=RiskOutput(\"Utilidad\") + (B2-B4)*B3-B5"),
+    ("RiskMean", "RiskMean(celda)",
+     "Celda output o input. Desde la versión 1.2.",
+     "media de la última simulación (#N/A si no hay)",
+     "Traer el resultado esperado a un reporte o dashboard.",
+     "=RiskMean(B6)"),
+    ("RiskStdDev / RiskMin / RiskMax", "RiskStdDev(celda), RiskMin(celda), RiskMax(celda)",
+     "Celda output o input. Desde la versión 1.2.",
+     "desviación, mínimo y máximo de la última simulación",
+     "Mostrar la dispersión y el rango completo.",
+     "=RiskMin(B6)"),
+    ("RiskPercentile", "RiskPercentile(celda, p)  (alias RiskPtoX)",
+     "p entre 0 y 1. Desde la versión 1.2.",
+     "valor en el percentil p",
+     "P5, P50, P95 para presentar el rango con cierta confianza.",
+     "=RiskPercentile(B6, 0.05)"),
+    ("RiskTarget", "RiskTarget(celda, valor)  (alias RiskXtoP)",
+     "Valor objetivo. Desde la versión 1.2.",
+     "probabilidad de quedar en el valor o por debajo",
+     "Probabilidad de pérdida (valor 0) o de no llegar a la meta.",
+     "=RiskTarget(B6, 0)"),
     ("RiskCorrmat", "RiskCorrmat(matriz, posición)",
      "Se pone como ÚLTIMO argumento de otra función. matriz = rango de correlaciones; posición = fila de "
      "esa variable en la matriz.",
@@ -234,13 +272,15 @@ TESTS = [
 ]
 
 COMPARE = [
-    ("Distribuciones", "Más de 90", "15 (ver hoja Funciones)"),
+    ("Distribuciones", "Más de 90", "17 (ver hoja Funciones)"),
     ("Latin Hypercube y correlaciones (Iman-Conover)", "Sí", "Sí"),
     ("Semilla reproducible", "Sí", f"Sí, desde la versión {VERSION}"),
     ("Histogramas, percentiles, tornado", "Sí", "Sí"),
-    ("RiskOutput dentro de la fórmula", "Sí", "No: se usa el botón Add Output (roadmap Fase 1)"),
-    ("RiskMean, RiskPercentile, RiskTarget en celda", "Sí", "No: se leen de la hoja de resultados (Fase 1)"),
+    ("RiskOutput dentro de la fórmula", "Sí", "Sí, desde la versión 1.2"),
+    ("RiskMean, RiskStdDev, RiskPercentile, RiskTarget en celda", "Sí", "Sí, desde la versión 1.2"),
+    ("RiskLognorm2 (parámetros de LN(X))", "Sí", "Sí, desde la versión 1.2 (y RiskLogNorm, igual)"),
     ("RiskLognorm(media, desv) de la variable", "Sí", "No: RiskLogNorm usa los parámetros de LN(X)"),
+    ("Simulación sin recalcular otros libros abiertos", "Sí", "Sí, desde la versión 1.2"),
     ("Escenarios en una corrida (RiskSimtable)", "Sí", "No (Fase 2)"),
     ("Ajuste de distribuciones a datos", "Sí", "No (Fase 3)"),
     ("Precio", "US$ 2,900 a 3,500 por licencia", "Gratis, código abierto (licencia MIT)"),
@@ -281,6 +321,7 @@ SHEETS = [
     ("Inicio", "Qué es XLRisk y cómo usar este manual"),
     ("Instalación", "Descargar, desbloquear y activar el complemento"),
     ("Paso a paso", "El flujo de una simulación y los botones de la cinta"),
+    ("Ejemplos ilustrados", "Cómo se ven las celdas en cada caso, paso a paso"),
     ("Funciones", "Todas las funciones, con sintaxis y ejemplos"),
     ("Configuración", "La hoja XLRisk"),
     ("Resultados", "Cómo leer la hoja de resultados"),
@@ -289,6 +330,8 @@ SHEETS = [
     ("Pruebas", "Verificar la instalación con las autopruebas"),
     ("XLRisk vs @RISK", "Qué tiene y qué le falta frente a @RISK"),
 ]
+
+DESC = dict(SHEETS)
 
 
 def title(ws, text, subtitle=None):
@@ -353,7 +396,7 @@ def build_workbook(path):
 
     # Instalación
     ws = wb.create_sheet("Instalación")
-    title(ws, "Instalación", SHEETS[1][1])
+    title(ws, "Instalación", DESC["Instalación"])
     r = table(ws, 5, ["Paso", "Qué hacer"], INSTALL, widths=[30, 100])
     ws.cell(row=r, column=1, value="Si algo falla").font = F_SUB
     table(ws, r + 1, ["Síntoma", "Solución"], [
@@ -368,14 +411,26 @@ def build_workbook(path):
 
     # Paso a paso
     ws = wb.create_sheet("Paso a paso")
-    title(ws, "Paso a paso", SHEETS[2][1])
+    title(ws, "Paso a paso", DESC["Paso a paso"])
     r = table(ws, 5, ["Paso", "Qué hacer"], WORKFLOW, widths=[26, 100])
     ws.cell(row=r, column=1, value="Botones de la pestaña XLRisk").font = F_SUB
     table(ws, r + 1, ["Botón", "Qué hace"], RIBBON, widths=[26, 100])
 
+    # Ejemplos ilustrados
+    ws = wb.create_sheet("Ejemplos ilustrados")
+    title(ws, "Ejemplos ilustrados", DESC["Ejemplos ilustrados"])
+    ws.column_dimensions["A"].width = 120
+    r = 5
+    for spec, png in zip(illustrations.SPECS, IMAGES):
+        ws.cell(row=r, column=1, value=spec["title"]).font = F_SUB
+        pic = XLImage(str(png))
+        pic.width, pic.height = pic.width // illustrations.SCALE, pic.height // illustrations.SCALE
+        ws.add_image(pic, f"A{r + 1}")
+        r += 4 + int(pic.height / 20)
+
     # Funciones
     ws = wb.create_sheet("Funciones")
-    title(ws, "Funciones", SHEETS[3][1])
+    title(ws, "Funciones", DESC["Funciones"])
     ws["A4"] = ("Todas las funciones de distribución aceptan RiskCorrmat como último argumento opcional. "
                 "Fuera de la simulación devuelven el valor de la columna D.")
     ws["A4"].font = F_BODY
@@ -390,7 +445,7 @@ def build_workbook(path):
 
     # Configuración
     ws = wb.create_sheet("Configuración")
-    title(ws, "Configuración: la hoja XLRisk", SHEETS[4][1])
+    title(ws, "Configuración: la hoja XLRisk", DESC["Configuración"])
     ws["A4"] = ("Setup crea la hoja XLRisk. Los valores se editan ahí o desde el formulario de Setup. "
                 "La hoja también lista los inputs detectados y los outputs registrados.")
     ws["A4"].font = F_BODY
@@ -398,7 +453,7 @@ def build_workbook(path):
 
     # Resultados
     ws = wb.create_sheet("Resultados")
-    title(ws, "Cómo leer los resultados", SHEETS[5][1])
+    title(ws, "Cómo leer los resultados", DESC["Resultados"])
     ws["A4"] = ("Cada Run crea una hoja de resultados nueva, con un bloque de navegación arriba a la "
                 "izquierda que lleva a cada sección.")
     ws["A4"].font = F_BODY
@@ -409,17 +464,17 @@ def build_workbook(path):
 
     # Buenas prácticas
     ws = wb.create_sheet("Buenas prácticas")
-    title(ws, "Buenas prácticas y errores comunes", SHEETS[7][1])
+    title(ws, "Buenas prácticas y errores comunes", DESC["Buenas prácticas"])
     table(ws, 5, ["Tema", "Qué hacer"], PRACTICES, widths=[40, 100])
 
     # Pruebas
     ws = wb.create_sheet("Pruebas")
-    title(ws, "Autopruebas", SHEETS[8][1])
+    title(ws, "Autopruebas", DESC["Pruebas"])
     paragraphs(ws, 5, TESTS)
 
     # Comparación
     ws = wb.create_sheet("XLRisk vs @RISK")
-    title(ws, "XLRisk frente a @RISK", SHEETS[9][1])
+    title(ws, "XLRisk frente a @RISK", DESC["XLRisk vs @RISK"])
     r = table(ws, 5, ["Capacidad", "@RISK", f"XLRisk {VERSION}"], COMPARE, widths=[46, 30, 56])
     ws.cell(row=r, column=1, value="@RISK es marca comercial de Lumivero. XLRisk es un proyecto independiente.").font = F_BODY
 
@@ -430,7 +485,7 @@ def build_workbook(path):
 
 
 def build_example(ws):
-    title(ws, "Ejemplo: utilidad = (precio - costo variable) x cantidad - costo fijo", SHEETS[6][1])
+    title(ws, "Ejemplo: utilidad = (precio - costo variable) x cantidad - costo fijo", DESC["Ejemplo"])
     ws.column_dimensions["A"].width = 28
     for col, w in zip("BCDEF", (14, 14, 4, 30, 16)):
         ws.column_dimensions[col].width = w
@@ -538,6 +593,9 @@ def build_markdown(path):
     lines += ["## Instalación", "", md_table(["Paso", "Qué hacer"], INSTALL), ""]
     lines += ["## Paso a paso", "", md_table(["Paso", "Qué hacer"], WORKFLOW), ""]
     lines += ["### Botones de la pestaña XLRisk", "", md_table(["Botón", "Qué hace"], RIBBON), ""]
+    lines += ["## Ejemplos ilustrados", ""]
+    for spec in illustrations.SPECS:
+        lines += [f"### {spec['title']}", "", f"![{spec['title']}](img/{spec['file']})", ""]
     lines += ["## Funciones", "",
               "Todas las funciones de distribución aceptan `RiskCorrmat` como último argumento opcional. "
               "Fuera de la simulación devuelven el valor de la columna \"Fuera de la simulación\".", "",
@@ -557,6 +615,8 @@ def build_markdown(path):
               "@RISK es marca comercial de Lumivero. XLRisk es un proyecto independiente.", ""]
     path.write_text("\n".join(lines), encoding="utf-8")
 
+
+IMAGES = illustrations.build_all()
 
 if __name__ == "__main__":
     build_workbook(HERE / "XLRisk_Manual_ES.xlsx")
