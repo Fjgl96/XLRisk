@@ -576,8 +576,8 @@ Private Sub WriteRow(ByVal Group As String, ByVal CheckName As String, ByVal Exp
     With mReport
         .Cells(mRow, 1).Value = Group
         .Cells(mRow, 2).Value = CheckName
-        .Cells(mRow, 3).Value = Expected
-        .Cells(mRow, 4).Value = Obtained
+        .Cells(mRow, 3).Value = AsText(Expected)
+        .Cells(mRow, 4).Value = AsText(Obtained)
         .Cells(mRow, 5).Value = Tolerance
         With .Cells(mRow, 6)
             .Font.Bold = True
@@ -595,6 +595,14 @@ Private Sub WriteRow(ByVal Group As String, ByVal CheckName As String, ByVal Exp
     If Not Passed Then mFailures = mFailures + 1
     mRow = mRow + 1
 End Sub
+
+Private Function AsText(ByVal V As Variant) As Variant
+' A text that looks like a formula (a formula shown as detail) is written as text
+    If VarType(V) = vbString Then
+        If Left(V, 1) = "=" Then V = "'" & V
+    End If
+    AsText = V
+End Function
 
 Private Sub WriteInfo(ByVal Group As String, ByVal Label As String, ByVal Value As Variant)
 ' Informative row: not counted as a check

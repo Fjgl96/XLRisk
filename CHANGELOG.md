@@ -29,6 +29,9 @@ treated as version 1.0.0.
 - 27 new self tests (58 in total).
 
 ### Fixed
+- A simulation that fails now says why. The original stopped without any message on errors, for
+  example when an output of the XLRisk sheet showed `#NAME?`; that case now names the cell and
+  how to fix it.
 - `RiskDiscrete` accepts the values in any order: it sorts them together with their
   probabilities. Before, unordered values gave `#VALUE!`. It also rejects a negative first
   probability, which was not checked.

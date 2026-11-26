@@ -111,6 +111,11 @@ Public Sub CollectRiskOutputs(Coll As Collection)
     Set R = Sht.Range("RiskOutputs").CurrentRegion
     
     For Row = 2 To R.Rows.Count
+        If IsError(R.Cells(Row, 1).Value) Then
+            Err.Raise vbObjectError + 513, "XLRisk", "The output in cell " & R.Cells(Row, 1).Address(False, False) & _
+                " of the XLRisk sheet shows an error. Select that cell, press F2 and Enter to recalculate it, " & _
+                "or delete the row and add the output again."
+        End If
         Set RiskOutputRange = Range(R.Cells(Row, 1).Value)
         For Each Cell In RiskOutputRange
             Set RiskOutput = New ClsRiskOutput

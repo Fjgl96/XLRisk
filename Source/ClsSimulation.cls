@@ -175,6 +175,7 @@ Public Sub Run()
     Dim StartTime As Double
     Dim LastRefresh As Double
     Dim CurrentTime As Double
+    Dim FailMessage As String
     
     ' Statistics functions (RiskMean...) return #N/A while the simulation runs
     mRunning = True
@@ -186,7 +187,7 @@ Public Sub Run()
     AppCalculation = Application.Calculation
     Application.Calculation = xlCalculationManual
     
-    On Error GoTo RestoreExcel
+    On Error GoTo Failed
         
     '  Stop Screen Updating?
     Application.ScreenUpdating = mScreenUpdate
@@ -294,7 +295,16 @@ Public Sub Run()
 
     'Run Macro After Simulation
     If mMacroAfterSimulation <> vbNullString Then Application.Run "'" & mWB.Name & "'!" & mMacroAfterSimulation
+    GoTo RestoreExcel
+
+Failed:
+    ' The original XLRisk stopped without a word on any error; now the user learns why
+    FailMessage = Err.Description
+    Resume RestoreExcel
+
 RestoreExcel:
+    ' The cleanup must finish even if one of its steps fails
+    On Error Resume Next
     'Restore ProduceRandomSample
     ProduceRandomSample = OldProduceRandomSample
     
@@ -314,6 +324,11 @@ RestoreExcel:
     
     Application.ScreenUpdating = True
     Application.Cursor = xlDefault
+
+    If Len(FailMessage) > 0 Then
+        MsgBox "The simulation stopped because of an error:" & vbCrLf & vbCrLf & FailMessage, _
+            vbExclamation, "XLRisk simulation error"
+    End If
 End Sub
 
 Public Function GetRndSample(Cell As Range) As Double
