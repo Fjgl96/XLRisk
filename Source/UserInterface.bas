@@ -3,6 +3,8 @@ Option Explicit
 
 Public UserStopped As Boolean
 Public gSimulation As ClsSimulation
+' True only in the self tests: draws the histograms with the chart used by Excel 2013 and older
+Public gForceHistogramFallback As Boolean
 
 Public Function SetUpXLRisk() As Worksheet
 '  Creates a sheet named XLRisk that contains risk settings, inputs and outputs
@@ -37,7 +39,8 @@ Public Function SetUpXLRisk() As Worksheet
             .Cells(5, 2) = True
             .Names.Add Name:="LatinHypercube", RefersTo:=.Cells(5, 2)
             .Cells(6, 1) = "Calculate data tables during simulation"
-            .Cells(6, 2) = True
+            ' Off by default: data tables recalculate in every iteration and slow the simulation a lot
+            .Cells(6, 2) = False
             .Names.Add Name:="CalcDataTables", RefersTo:=.Cells(6, 2)
         
             .Cells(10, 1) = "Macro to run before each iteration"

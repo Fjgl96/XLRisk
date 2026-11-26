@@ -39,6 +39,7 @@ Public Sub XLRiskSelfTests()
     TestRngUniformity
     TestShuffle
     TestSimulation
+    TestVersion12
 
     UseLegacyRnd = OldLegacy
     RngRandomize
@@ -248,6 +249,166 @@ Private Sub TestSimulation()
 Failed:
     WriteRow G, "Simulation ran without errors", "no error", Err.Description, "", False
     On Error Resume Next
+    Set gSimulation = Nothing
+    If Not WB Is Nothing Then WB.Close SaveChanges:=False
+End Sub
+
+Private Sub TestVersion12()
+' Version 1.2: RiskDiscrete in any order, Bernoulli and Binomial without rounding, RiskTriGen,
+' data tables off by default, histogram for older Excel, tornado of the change in output mean,
+' Compare Runs and Swap Functions.
+    Const G As String = "Version 1.2"
+    Dim WB As Workbook
+    Dim WS As Worksheet
+    Dim XS As Worksheet
+    Dim RR As Worksheet
+    Dim CS As Worksheet
+    Dim Sim As ClsSimulation
+    Dim Res As Variant
+    Dim V As Variant
+    Dim T As Range
+    Dim C As Long
+    Dim I As Long
+    Dim N As Long
+    Dim N45 As Long
+    Dim N56 As Long
+    Dim OnlyListed As Boolean
+    Dim OldSample As Boolean
+    Dim Original As String
+    Dim Detail As String
+
+    OldSample = ProduceRandomSample
+    On Error GoTo Failed
+    Set WB = Workbooks.Add(xlWBATWorksheet)
+    Set WS = WB.Worksheets(1)
+    WS.Name = "Model12"
+    With WS
+        .Range("A1").Formula = "=RiskDiscrete({56,45,50},{0.25,0.25,0.5})"
+        .Range("A2").Formula = "=RiskBernoulli(0.15)"
+        .Range("A3").Formula = "=RiskBinomial(10,0.15)"
+        .Range("A4").Formula = "=RiskTriGen(80,100,130,0.1,0.9)"
+        .Range("A5").Formula = "=2*A1+A4"
+        .Range("A6").Formula = "=A1"
+        .Range("A7").Formula = "=A4"
+        .Range("A8").Formula = "=A2"
+    End With
+
+    ' Expected values, with Show Samples off
+    ProduceRandomSample = False
+    WB.Activate
+    Application.CalculateFull
+    CheckNear G, "RiskDiscrete with values in any order: expected value", 50.25, CellNumber(WS.Range("A1")), 0.000000001
+    CheckNear G, "RiskBernoulli(0.15) shows 0.15, not a rounded 0", 0.15, CellNumber(WS.Range("A2")), 0.000000001
+    CheckNear G, "RiskBinomial(10, 0.15) shows 1.5, not a rounded 2", 1.5, CellNumber(WS.Range("A3")), 0.000000001
+    CheckNear G, "RiskTriGen(80, 100, 130, 10%, 90%): expected value", 104.296539858006, CellNumber(WS.Range("A4")), 0.0001
+
+    ' A new XLRisk sheet has data tables off
+    Set XS = SetUpXLRisk
+    CheckTrue G, "New XLRisk sheet: Calculate data tables is off", (XS.Range("CalcDataTables").Value = False), _
+              CStr(XS.Range("CalcDataTables").Value)
+    XS.Range("Seed").Value = SIM_SEED
+    XS.Range("Iterations").Value = SIM_ITERATIONS
+    XS.Range("ScreenUpdate").Value = False
+    XS.Range("LatinHypercube").Value = True
+    AddTestOutput XS, WS.Range("A5"), "Sum"
+    AddTestOutput XS, WS.Range("A6"), "Disc"
+    AddTestOutput XS, WS.Range("A7"), "TriGen"
+    AddTestOutput XS, WS.Range("A8"), "Bern"
+    XS.Calculate
+
+    gForceHistogramFallback = True
+    Set Sim = RunSimulation(WB)
+    gForceHistogramFallback = False
+    Res = Sim.LastResults
+    C = 1 + Sim.InputCount
+
+    ' RiskDiscrete with unordered values
+    V = ColValues(Res, C + 2)
+    N = UBound(V)
+    OnlyListed = True
+    For I = 1 To N
+        If V(I) = 45 Then
+            N45 = N45 + 1
+        ElseIf V(I) = 56 Then
+            N56 = N56 + 1
+        ElseIf V(I) <> 50 Then
+            OnlyListed = False
+        End If
+    Next I
+    CheckTrue G, "RiskDiscrete in any order: only the listed values", OnlyListed, IIf(OnlyListed, "45, 50, 56", "other values")
+    CheckNear G, "RiskDiscrete in any order: share of 45", 0.25, N45 / N, 0.02
+    CheckNear G, "RiskDiscrete in any order: share of 56", 0.25, N56 / N, 0.02
+    CheckNear G, "RiskBernoulli(0.15): mean in the simulation", 0.15, ColMean(Res, C + 4), 0.015
+    CheckNear G, "RiskTriGen: 10th percentile is the bottom value 80", 80#, _
+              WorksheetFunction.Percentile_Inc(ColValues(Res, C + 3), 0.1), 1.5
+    CheckNear G, "RiskTriGen: 90th percentile is the top value 130", 130#, _
+              WorksheetFunction.Percentile_Inc(ColValues(Res, C + 3), 0.9), 1.5
+
+    Set RR = WB.Worksheets("Risk Results 1")
+
+    ' Histogram for Excel 2013 and older (forced)
+    Set T = Nothing
+    On Error Resume Next
+    Set T = RR.Range("OutDistTable1")
+    On Error GoTo Failed
+    CheckTrue G, "Histogram for older Excel: table of counts", Not T Is Nothing, IIf(T Is Nothing, "missing", "found")
+    If Not T Is Nothing Then
+        CheckNear G, "Histogram for older Excel: counts add up to the iterations", SIM_ITERATIONS, _
+                  WorksheetFunction.Sum(T.Offset(1, 1).Resize(20, 1)), 0
+    End If
+
+    ' Tornado of the change in output mean, output Sum = 2 x Discrete + TriGen
+    Set T = Nothing
+    On Error Resume Next
+    Set T = RR.Range("MeanTornadoTable1")
+    On Error GoTo Failed
+    CheckTrue G, "Output mean tornado: table for the first output", Not T Is Nothing, IIf(T Is Nothing, "missing", "found")
+    If Not T Is Nothing Then
+        Detail = CStr(T.Offset(1, 0).Value) & " / " & CStr(T.Offset(2, 0).Value) & " / " & CStr(T.Offset(3, 0).Value)
+        CheckTrue G, "Output mean tornado: only the 2 inputs that change the output, largest swing first", _
+                  (InStr(1, T.Offset(1, 0).Value, "$A$4") > 0) And (InStr(1, T.Offset(2, 0).Value, "$A$1") > 0) _
+                  And Len(CStr(T.Offset(3, 0).Value)) = 0, Detail
+        CheckNear G, "Output mean tornado: swing of RiskTriGen (exact 63.4)", 63.42, CellNumber(T.Offset(1, 5)), 5
+        CheckNear G, "Output mean tornado: swing of 2 x RiskDiscrete (exact 22)", 22#, CellNumber(T.Offset(2, 5)), 4
+        CheckNear G, "Output mean tornado: share of variance of RiskTriGen (exact 84.9%)", 0.849, CellNumber(T.Offset(1, 6)), 0.03
+        CheckNear G, "Output mean tornado: shares add up to 100%", 1#, _
+                  CellNumber(T.Offset(1, 6)) + CellNumber(T.Offset(2, 6)), 0.000001
+    End If
+
+    ' Compare Runs: a second run with the same seed must give the same column
+    Set Sim = RunSimulation(WB)
+    Set CS = CompareRunsFor(WB, AddressWithSheet(WS.Range("A5")))
+    CheckTrue G, "Compare Runs: sheet with the two runs", Not CS Is Nothing, IIf(CS Is Nothing, "missing", "found")
+    If Not CS Is Nothing Then
+        CheckTrue G, "Compare Runs: one column per run", _
+                  (CS.Range("B3").Value = "Risk Results 1") And (CS.Range("C3").Value = "Risk Results 2"), _
+                  CStr(CS.Range("B3").Value) & " / " & CStr(CS.Range("C3").Value)
+        CheckNear G, "Compare Runs: mean of the first run", ColMean(Res, C + 1), CellNumber(CS.Range("B4")), 0.000001
+        CheckNear G, "Compare Runs: same seed gives the same mean", CellNumber(CS.Range("B4")), CellNumber(CS.Range("C4")), 0.000001
+        CheckNear G, "Compare Runs: chart with one curve per run", 2, CS.ChartObjects(1).Chart.SeriesCollection.Count, 0
+    End If
+
+    ' Swap Functions
+    Original = WS.Range("A4").Formula
+    ProduceRandomSample = False
+    N = SwapOut(WB)
+    CheckNear G, "Swap Functions: the 4 Risk functions are replaced", 4, N, 0
+    CheckTrue G, "Swap Functions: the cell holds the expected value", _
+              (InStr(1, WS.Range("A1").Formula, "Risk", vbTextCompare) = 0) And _
+              (Abs(CellNumber(WS.Range("A1")) - 50.25) < 0.000000001), WS.Range("A1").Formula
+    N = SwapIn(WB)
+    CheckTrue G, "Swap Functions: the second press restores the formulas", _
+              (WS.Range("A4").Formula = Original) And Not HasSwapSheet(WB), WS.Range("A4").Formula
+
+    ProduceRandomSample = OldSample
+    WB.Close SaveChanges:=False
+    Exit Sub
+
+Failed:
+    WriteRow G, "Version 1.2 checks ran without errors", "no error", Err.Description, "", False
+    On Error Resume Next
+    gForceHistogramFallback = False
+    ProduceRandomSample = OldSample
     Set gSimulation = Nothing
     If Not WB Is Nothing Then WB.Close SaveChanges:=False
 End Sub

@@ -12,10 +12,10 @@ Public Function RiskFunctionList() As Variant
     RiskFunctionList = Array("RiskBernoulli", "RiskBeta", "RiskBinomial", _
     "RiskCumul", "RiskDiscrete", "RiskDUniform", "RiskErlang", "RiskExpon", _
     "RiskGamma", "RiskLogNorm", "RiskNormal", "RiskTriang", "RiskPert", _
-    "RiskUniform", "RiskWeibull", "RiskLognorm2", "RiskPoisson")
+    "RiskUniform", "RiskWeibull", "RiskLognorm2", "RiskPoisson", "RiskTriGen")
 End Function
 
-Public Function RiskBinomial(N As Long, P As Double, Optional Corrmat As Long = 0) As Long
+Public Function RiskBinomial(N As Long, P As Double, Optional Corrmat As Long = 0) As Variant
 Attribute RiskBinomial.VB_Description = "Generate random sample from a Binomial destribution"
 Attribute RiskBinomial.VB_ProcData.VB_Invoke_Func = " \n20"
     Dim RndValue As Double
@@ -37,11 +37,12 @@ Attribute RiskBinomial.VB_ProcData.VB_Invoke_Func = " \n20"
         End If
         RiskBinomial = WorksheetFunction.Binom_Inv(N, P, RndValue)
     Else
-        RiskBinomial = N * P
+        ' Expected value, not rounded (a Long result used to round 40 x 0.15 or 0.15 itself)
+        RiskBinomial = CDbl(N) * P
     End If
 End Function
 
-Public Function RiskBernoulli(P As Double, Optional Corrmat As Long = 0) As Long
+Public Function RiskBernoulli(P As Double, Optional Corrmat As Long = 0) As Variant
 Attribute RiskBernoulli.VB_Description = "Generate random sample from a Bernoulli destribution"
 Attribute RiskBernoulli.VB_ProcData.VB_Invoke_Func = " \n20"
     Application.Volatile (ProduceRandomSample)
@@ -147,40 +148,68 @@ Attribute RiskUniform.VB_ProcData.VB_Invoke_Func = " \n20"
     End If
 End Function
 
-Public Function RiskDiscrete(Values As Variant, Probabilities As Variant, Optional Corrmat As Long = 0) As Double
+Public Function RiskDiscrete(Values As Variant, Probabilities As Variant, Optional Corrmat As Long = 0) As Variant
 Attribute RiskDiscrete.VB_Description = "Generate random sample from a discrete probability destribution"
 Attribute RiskDiscrete.VB_ProcData.VB_Invoke_Func = " \n20"
-'   Generates samples for a discrete distribution specified by the array Values of accending values and the respective
-'   probabilities
-    
+'   Generates samples for a discrete distribution specified by the values and their probabilities.
+'   The values may come in any order: they are sorted together with their probabilities, so the
+'   inverse of the cumulative distribution stays increasing (needed by Latin Hypercube and RiskCorrmat).
+
+    Dim V() As Double
+    Dim Pr() As Double
     Dim Count As Long
     Dim I As Long
+    Dim J As Long
     Dim RndValue As Double
     Dim Cum As Double
-    
+    Dim Total As Double
+    Dim TmpV As Double
+    Dim TmpP As Double
+
     Application.Volatile (ProduceRandomSample)
-    
-    Count = WorksheetFunction.Count(Values)
 
-    'Error checking
-    If (Count < 1) Or WorksheetFunction.Count(Probabilities) <> Count Then
-      RiskDiscrete = CVErr(xlErrValue)
-      Exit Function
+    If Not ReadNumbers(Values, V) Then
+        RiskDiscrete = CVErr(xlErrValue)
+        Exit Function
     End If
-    
-    If Round(WorksheetFunction.Sum(Probabilities), 10) <> 1 Then
-      RiskDiscrete = CVErr(xlErrValue)
-      Exit Function
+    If Not ReadNumbers(Probabilities, Pr) Then
+        RiskDiscrete = CVErr(xlErrValue)
+        Exit Function
+    End If
+    Count = UBound(V)
+    If UBound(Pr) <> Count Then
+        RiskDiscrete = CVErr(xlErrValue)
+        Exit Function
     End If
 
-    For I = 2 To Count
-        If (Probabilities(I) < 0) Or (Values(I) - Values(I - 1) < 0) Then
-          RiskDiscrete = CVErr(xlErrValue)
-          Exit Function
+    Total = 0
+    For I = 1 To Count
+        If Pr(I) < 0 Then
+            RiskDiscrete = CVErr(xlErrValue)
+            Exit Function
         End If
+        Total = Total + Pr(I)
     Next I
+    If Round(Total, 10) <> 1 Then
+        RiskDiscrete = CVErr(xlErrValue)
+        Exit Function
+    End If
 
     If ProduceRandomSample Then
+        ' Insertion sort of the pairs (value, probability) by value
+        For I = 2 To Count
+            TmpV = V(I)
+            TmpP = Pr(I)
+            J = I - 1
+            Do While J >= 1
+                If V(J) <= TmpV Then Exit Do
+                V(J + 1) = V(J)
+                Pr(J + 1) = Pr(J)
+                J = J - 1
+            Loop
+            V(J + 1) = TmpV
+            Pr(J + 1) = TmpP
+        Next I
         If gSimulation Is Nothing Then
             RndValue = RngUniform()
         Else
@@ -188,15 +217,63 @@ Attribute RiskDiscrete.VB_ProcData.VB_Invoke_Func = " \n20"
         End If
         Cum = 0
         For I = 1 To Count
-            Cum = Cum + Probabilities(I)
+            Cum = Cum + Pr(I)
             If RndValue <= Cum Then
-                RiskDiscrete = Values(I)
+                RiskDiscrete = V(I)
                 Exit Function
             End If
         Next I
+        RiskDiscrete = V(Count)
     Else
-        RiskDiscrete = WorksheetFunction.SumProduct(Values, Probabilities)
+        Cum = 0
+        For I = 1 To Count
+            Cum = Cum + V(I) * Pr(I)
+        Next I
+        RiskDiscrete = Cum
     End If
+End Function
+
+Private Function ReadNumbers(Source As Variant, Result() As Double) As Boolean
+' Copies the numbers of a range, an array or a single value into Result(1 To n).
+' Returns False if Source holds no numbers or holds text, blanks or errors.
+    Dim Data As Variant
+    Dim Item As Variant
+    Dim N As Long
+
+    On Error GoTo Invalid
+    If TypeName(Source) = "Range" Then
+        Data = Source.Value
+    Else
+        Data = Source
+    End If
+    N = 0
+    If IsArray(Data) Then
+        For Each Item In Data
+            If Not IsPlainNumber(Item) Then GoTo Invalid
+            N = N + 1
+            ReDim Preserve Result(1 To N)
+            Result(N) = CDbl(Item)
+        Next Item
+    Else
+        If Not IsPlainNumber(Data) Then GoTo Invalid
+        N = 1
+        ReDim Result(1 To 1)
+        Result(1) = CDbl(Data)
+    End If
+    ReadNumbers = (N > 0)
+    Exit Function
+Invalid:
+    ReadNumbers = False
+End Function
+
+Private Function IsPlainNumber(X As Variant) As Boolean
+' True for numbers; False for text, blanks, booleans and errors
+    Select Case VarType(X)
+        Case vbInteger, vbLong, vbSingle, vbDouble, vbCurrency, vbDecimal, vbByte
+            IsPlainNumber = True
+        Case Else
+            IsPlainNumber = False
+    End Select
 End Function
 
 Public Function RiskDUniform(Values As Variant, Optional Corrmat As Long = 0) As Variant
@@ -339,6 +416,70 @@ Attribute RiskTriang.VB_ProcData.VB_Invoke_Func = " \n20"
         End If
     Else
         RiskTriang = (Min + Mode + Max) / 3
+    End If
+End Function
+
+Public Function RiskTriGen(Bottom As Double, MostLikely As Double, Top As Double, _
+    Optional BottomPerc As Double = 0.1, Optional TopPerc As Double = 0.9, Optional Corrmat As Long = 0) As Variant
+Attribute RiskTriGen.VB_Description = "Generate random sample from a triangular distribution given two percentiles and the most likely value"
+Attribute RiskTriGen.VB_ProcData.VB_Invoke_Func = " \n20"
+'   Triangular distribution defined like @RISK's RiskTrigen: Bottom is the value at the
+'   BottomPerc percentile, Top the value at the TopPerc percentile (10% and 90% by default).
+'   The minimum and maximum of the triangle are found by fixed-point iteration.
+    Dim A As Double
+    Dim B As Double
+    Application.Volatile (ProduceRandomSample)
+
+    If Not TriGenLimits(Bottom, MostLikely, Top, BottomPerc, TopPerc, A, B) Then
+        RiskTriGen = CVErr(xlErrValue)
+        Exit Function
+    End If
+    RiskTriGen = TriangSample(A, MostLikely, B)
+End Function
+
+Public Function TriGenLimits(ByVal Bottom As Double, ByVal MostLikely As Double, ByVal Top As Double, _
+    ByVal BottomPerc As Double, ByVal TopPerc As Double, ByRef A As Double, ByRef B As Double) As Boolean
+' Finds the minimum A and maximum B of the triangular distribution whose cumulative probability
+' is BottomPerc at Bottom and TopPerc at Top. Returns False if there is no such triangle.
+    Dim I As Long
+    Dim NewA As Double
+    Dim NewB As Double
+
+    TriGenLimits = False
+    If Not (Bottom <= MostLikely And MostLikely <= Top And Bottom < Top) Then Exit Function
+    If Not (BottomPerc > 0 And BottomPerc < TopPerc And TopPerc < 1) Then Exit Function
+    A = Bottom
+    B = Top
+    For I = 1 To 1000
+        NewA = Bottom - Sqr(BottomPerc * (B - A) * (MostLikely - A))
+        NewB = Top + Sqr((1 - TopPerc) * (B - A) * (B - MostLikely))
+        If Abs(NewA - A) <= 0.000000000001 * (1 + Abs(A)) And Abs(NewB - B) <= 0.000000000001 * (1 + Abs(B)) Then
+            A = NewA
+            B = NewB
+            TriGenLimits = (A < MostLikely And MostLikely < B)
+            Exit Function
+        End If
+        A = NewA
+        B = NewB
+    Next I
+End Function
+
+Private Function TriangSample(ByVal Min As Double, ByVal Mode As Double, ByVal Max As Double) As Double
+' Sample (or expected value when samples are off) of a triangular distribution, for RiskTriGen
+    Dim P As Double
+    If ProduceRandomSample Then
+        If gSimulation Is Nothing Then
+            P = RngUniform()
+        Else
+            P = gSimulation.GetRndSample(Application.Caller)
+        End If
+        If P < (Mode - Min) / (Max - Min) Then
+            TriangSample = Min + Sqr(P * (Mode - Min) * (Max - Min))
+        Else
+            TriangSample = Max - Sqr((1 - P) * (Max - Mode) * (Max - Min))
+        End If
+    Else
+        TriangSample = (Min + Mode + Max) / 3
     End If
 End Function
 
@@ -523,7 +664,7 @@ Public Sub FunctionDescriptions()
         Array("Minimum Value", "Maximum Value", "Range or array of X coordinates", _
         "Range or Array of Y coordinates (cumulative probabilities)", CorrMatDesc))
     Call CreateFunctionDescription("RiskDiscrete", "Generate random sample from a discrete probability destribution", _
-        Array("Range or array of ascending values", "Range or array of probabilities", CorrMatDesc))
+        Array("Range or array of values (any order)", "Range or array of probabilities", CorrMatDesc))
     Call CreateFunctionDescription("RiskDUniform", "Generate random sample from a uniform discrete destribution", _
         Array("Range or array of values", CorrMatDesc))
     Call CreateFunctionDescription("RiskGamma", "Generate random sample from a Gamma destribution", _
@@ -540,6 +681,9 @@ Public Sub FunctionDescriptions()
         Array("Minimum value", "Mode", "Maximum value", CorrMatDesc))
     Call CreateFunctionDescription("RiskTriang", "Generate random sample from a triangular destribution", _
         Array("Minimum value", "Mode", "Maximum value", CorrMatDesc))
+    Call CreateFunctionDescription("RiskTriGen", "Generate random sample from a triangular distribution given two percentiles and the most likely value", _
+        Array("Value at the bottom percentile", "Most likely value", "Value at the top percentile", _
+        "Optional bottom percentile - 0.1 if omitted", "Optional top percentile - 0.9 if omitted", CorrMatDesc))
     Call CreateFunctionDescription("RiskUniform", "Generate random sample from a uniform destribution", _
         Array("Minimum value", "Maximum Value", CorrMatDesc))
     Call CreateFunctionDescription("RiskWeibull", "Generate random sample from a Weibull destribution", _

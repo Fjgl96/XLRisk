@@ -42,10 +42,13 @@ Public Sub ProduceResults()
     Application.Calculate
     ' Produce Cumulative Distributions
     ProduceCumulativeDistributions
-    ' Produce histograms only if Excel version > 16
-    If Val(Application.Version) >= 16 Then ProduceHistograms
+    ' Produce histograms (Excel 2016+ histogram chart, or a column chart of counts in older Excel)
+    ProduceHistograms
     ' Produce Tornado Diagram
-    If mRiskInputs.Count > 1 Then ProduceTornadoDiagram
+    If mRiskInputs.Count > 1 Then
+        ProduceTornadoDiagram
+        ProduceMeanTornado
+    End If
 End Sub
 
 Private Sub InitialiseResults()
@@ -144,23 +147,31 @@ Private Sub InitialiseResults()
         .HorizontalAlignment = xlCenter
     End With
     
-    If Val(Application.Version) >= 16 Then
-        '  Setup Output Histograms
-        Set Curr = Curr.Offset(0, ChartWidth + 1)
-        Curr.Offset(-1, 0) = "Output Distributions"
-        mOutSheet.Names.Add Name:="OutDist", RefersTo:=Curr.Offset(1, 0)
-        With Curr.Offset(-1, 0).Resize(1, ChartWidth)
-            .Merge
-            .Font.Bold = True
-            .HorizontalAlignment = xlCenter
-        End With
-    End If
+    '  Setup Output Histograms
+    Set Curr = Curr.Offset(0, ChartWidth + 1)
+    Curr.Offset(-1, 0) = "Output Distributions"
+    mOutSheet.Names.Add Name:="OutDist", RefersTo:=Curr.Offset(1, 0)
+    With Curr.Offset(-1, 0).Resize(1, ChartWidth)
+        .Merge
+        .Font.Bold = True
+        .HorizontalAlignment = xlCenter
+    End With
     
     If mRiskInputs.Count > 1 Then
         '  Setup Tornado Diagram
         Set Curr = Curr.Offset(0, ChartWidth + 1)
         Curr.Offset(-1, 0) = "Risk Tornado Diagram"
         mOutSheet.Names.Add Name:="Tornado", RefersTo:=Curr.Offset(1, 0)
+        With Curr.Offset(-1, 0).Resize(1, ChartWidth)
+            .Merge
+            .Font.Bold = True
+            .HorizontalAlignment = xlCenter
+        End With
+
+        '  Setup the tornado of the change in output mean, after the hidden sorted table of the tornado
+        Set Curr = Curr.Offset(0, ChartWidth + mRiskOutputs.Count + 3)
+        Curr.Offset(-1, 0) = "Output Mean Tornado"
+        mOutSheet.Names.Add Name:="MeanTornado", RefersTo:=Curr.Offset(1, 0)
         With Curr.Offset(-1, 0).Resize(1, ChartWidth)
             .Merge
             .Font.Bold = True
@@ -188,13 +199,13 @@ Private Sub InitialiseResults()
             SubAddress:="Correlations", TextToDisplay:="Correlations"
         .Add Anchor:=Curr.Offset(6), Address:=vbNullString, _
             SubAddress:=mOutSheet.Range("OutCumDist").Offset(-2).Address, TextToDisplay:="Output Cumulative Distributions"
-        If Val(Application.Version) >= 16 Then
-            .Add Anchor:=Curr.Offset(7), Address:=vbNullString, _
-                SubAddress:=mOutSheet.Range("OutDist").Offset(-2).Address, TextToDisplay:="Output Distributions"
-        End If
+        .Add Anchor:=Curr.Offset(7), Address:=vbNullString, _
+            SubAddress:=mOutSheet.Range("OutDist").Offset(-2).Address, TextToDisplay:="Output Distributions"
         If mRiskInputs.Count > 1 Then
-            .Add Anchor:=Curr.Offset(IIf(Val(Application.Version) >= 16, 8, 7)), Address:=vbNullString, _
+            .Add Anchor:=Curr.Offset(8), Address:=vbNullString, _
                 SubAddress:=mOutSheet.Range("Tornado").Offset(-2).Address, TextToDisplay:="Risk Tornado Diagram"
+            .Add Anchor:=Curr.Offset(9), Address:=vbNullString, _
+                SubAddress:=mOutSheet.Range("MeanTornado").Offset(-2).Address, TextToDisplay:="Output Mean Tornado"
         End If
     End With
     mOutSheet.Columns(1).AutoFit
@@ -378,32 +389,120 @@ Finish:
 End Sub
 
 Private Sub ProduceHistograms()
+' One histogram per output. Excel 2016 and later draw it with their histogram chart; older
+' versions, or a failure of that chart, get a column chart of the counts in 20 equal bins.
     Dim SimOutput As Range
     Dim R As Range
-    Dim ChartShape As Shape
-    Dim NewChart As Chart
     Dim RiskOutput As ClsRiskOutput
-    
-    On Error GoTo Finish
-    
+    Dim J As Long
+    Dim Done As Boolean
+
     Set SimOutput = mOutSheet.Range("OutputResults").Resize(mIterations, 1)
     Set R = mOutSheet.Range("OutDist").Resize(ChartHeight, ChartWidth)
-    
+    J = 0
     For Each RiskOutput In mRiskOutputs
-        ' Range needs to be selected
-        'https://stackoverflow.com/questions/37912746/vba-why-xlhistogram-does-not-work
-        SimOutput.Select
-        Set ChartShape = ActiveSheet.Shapes.AddChart2(-1, xlHistogram, R.Left, R.Top, R.Width, R.Height)
-        Set NewChart = ChartShape.Chart
-        
-        With NewChart
-           .SetElement (msoElementChartTitleAboveChart)
-           .ChartTitle.text = "Distribution of " & RiskOutput.Name & " (" & AddressWithSheet(RiskOutput.Cell) & ")"
-        End With
+        J = J + 1
+        Done = False
+        If Val(Application.Version) >= 16 And Not gForceHistogramFallback Then
+            Done = NativeHistogram(SimOutput, R, RiskOutput)
+        End If
+        If Not Done Then HistogramFallback R, RiskOutput, J
         Set SimOutput = SimOutput.Offset(0, 1)
         Set R = R.Offset(ChartHeight + 1)
     Next RiskOutput
+    On Error Resume Next
     mOutSheet.Range("A1").Select
+End Sub
+
+Private Function NativeHistogram(SimOutput As Range, R As Range, RiskOutput As ClsRiskOutput) As Boolean
+    Const HISTOGRAM_CHART As Long = 118   ' xlHistogram, written as a number so older Excel can compile
+    Dim ChartShape As Shape
+
+    On Error GoTo Failed
+    ' Range needs to be selected
+    'https://stackoverflow.com/questions/37912746/vba-why-xlhistogram-does-not-work
+    SimOutput.Select
+    Set ChartShape = mOutSheet.Shapes.AddChart2(-1, HISTOGRAM_CHART, R.Left, R.Top, R.Width, R.Height)
+    With ChartShape.Chart
+       .SetElement (msoElementChartTitleAboveChart)
+       .ChartTitle.text = "Distribution of " & RiskOutput.Name & " (" & AddressWithSheet(RiskOutput.Cell) & ")"
+    End With
+    NativeHistogram = True
+    Exit Function
+Failed:
+    NativeHistogram = False
+End Function
+
+Private Sub HistogramFallback(R As Range, RiskOutput As ClsRiskOutput, ByVal J As Long)
+' Column chart of the counts of output J in 20 equal bins. The table of counts is written in the
+' cells under the chart (first two columns of R).
+    Const BINS As Long = 20
+    Dim Col As Long
+    Dim I As Long
+    Dim K As Long
+    Dim N As Long
+    Dim X As Double
+    Dim MinV As Double
+    Dim MaxV As Double
+    Dim W As Double
+    Dim Counts(1 To 20) As Long
+    Dim Table As Range
+    Dim ChartObj As ChartObject
+
+    On Error GoTo Finish
+    Col = 1 + mRiskInputs.Count + J
+    N = 0
+    For I = 1 To mIterations
+        If IsNumber(mSimResults(I, Col)) Then
+            X = CDbl(mSimResults(I, Col))
+            If N = 0 Then
+                MinV = X
+                MaxV = X
+            Else
+                If X < MinV Then MinV = X
+                If X > MaxV Then MaxV = X
+            End If
+            N = N + 1
+        End If
+    Next I
+    If N = 0 Then Exit Sub
+    W = (MaxV - MinV) / BINS
+    For I = 1 To mIterations
+        If IsNumber(mSimResults(I, Col)) Then
+            X = CDbl(mSimResults(I, Col))
+            If W > 0 Then K = Int((X - MinV) / W) + 1 Else K = 1
+            If K > BINS Then K = BINS
+            If K < 1 Then K = 1
+            Counts(K) = Counts(K) + 1
+        End If
+    Next I
+
+    Set Table = R.Cells(1, 1).Resize(BINS + 1, 2)
+    Table.Cells(1, 1).Value = "Bin upper limit"
+    Table.Cells(1, 2).Value = "Count"
+    For K = 1 To BINS
+        Table.Cells(K + 1, 1).Value = MinV + W * K
+        Table.Cells(K + 1, 2).Value = Counts(K)
+    Next K
+    Table.Columns(1).Offset(1).Resize(BINS).NumberFormat = "#,##0.00"
+    mOutSheet.Names.Add Name:="OutDistTable" & CStr(J), RefersTo:=Table.Cells(1, 1)
+
+    Set ChartObj = mOutSheet.ChartObjects.Add(R.Left, R.Top, R.Width, R.Height)
+    With ChartObj.Chart
+        .ChartType = xlColumnClustered
+        Do While .SeriesCollection.Count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        With .SeriesCollection.NewSeries
+            .Values = Table.Cells(2, 2).Resize(BINS, 1)
+            .XValues = Table.Cells(2, 1).Resize(BINS, 1)
+            .Name = "Count"
+        End With
+        .HasLegend = False
+        .ChartGroups(1).GapWidth = 5
+        .HasTitle = True
+        .ChartTitle.text = "Distribution of " & RiskOutput.Name & " (" & AddressWithSheet(RiskOutput.Cell) & ")"
+    End With
 Finish:
 End Sub
 
@@ -498,6 +597,264 @@ Sub ProduceTornadoDiagram()
         .ChartTitle.Font.Bold = False
         .ChartGroups(1).GapWidth = 50
     End With
+End Sub
+
+Private Sub ProduceMeanTornado()
+' Tornado of the change in output mean, in the units of the output (as the "change in output mean"
+' tornado of @RISK). For each input the iterations are sorted by the value of the input and split
+' in 10 groups of the same size (deciles). The bar goes from the lowest to the highest mean of the
+' output among those groups, measured from the overall mean of the output. The table also gives an
+' approximate share of the variance of the output: correlation squared, rescaled to add up to 100%.
+    Const GROUPS As Long = 10
+    Dim Start As Range
+    Dim TopCell As Range
+    Dim Table As Range
+    Dim ChartObj As ChartObject
+    Dim RiskOutput As ClsRiskOutput
+    Dim I As Long
+    Dim J As Long
+    Dim K As Long
+    Dim N As Long
+    Dim G As Long
+    Dim NRows As Long
+    Dim InCol As Long
+    Dim OutCol As Long
+    Dim Keys() As Double
+    Dim Idx() As Long
+    Dim GroupSum(1 To 10) As Double
+    Dim GroupCount(1 To 10) As Long
+    Dim GroupMean As Double
+    Dim OverallMean As Double
+    Dim LowMean() As Double
+    Dim HighMean() As Double
+    Dim Corr() As Double
+    Dim Used() As Boolean
+    Dim Order() As Long
+    Dim SumR2 As Double
+    Dim Tmp As Long
+    Dim Offs As Long
+
+    If mIterations < GROUPS Then Exit Sub
+    On Error GoTo Finish
+    Set Start = mOutSheet.Range("MeanTornado")
+    Offs = 0
+    J = 0
+    For Each RiskOutput In mRiskOutputs
+        J = J + 1
+        OutCol = 1 + mRiskInputs.Count + J
+        ReDim LowMean(1 To mRiskInputs.Count)
+        ReDim HighMean(1 To mRiskInputs.Count)
+        ReDim Corr(1 To mRiskInputs.Count)
+        ReDim Used(1 To mRiskInputs.Count)
+        OverallMean = ColumnMean(OutCol)
+        NRows = 0
+        SumR2 = 0
+        For I = 1 To mRiskInputs.Count
+            InCol = 1 + I
+            If mDependencyMatrix(I, J) Then
+                ' Iterations where both the input and the output are numbers
+                N = 0
+                ReDim Keys(1 To mIterations)
+                ReDim Idx(1 To mIterations)
+                For K = 1 To mIterations
+                    If IsNumber(mSimResults(K, InCol)) And IsNumber(mSimResults(K, OutCol)) Then
+                        N = N + 1
+                        Keys(N) = CDbl(mSimResults(K, InCol))
+                        Idx(N) = K
+                    End If
+                Next K
+                If N >= GROUPS Then
+                    SortByKey Keys, Idx, 1, N
+                    For K = 1 To GROUPS
+                        GroupSum(K) = 0
+                        GroupCount(K) = 0
+                    Next K
+                    For K = 1 To N
+                        G = Int((K - 1) * GROUPS / N) + 1
+                        GroupSum(G) = GroupSum(G) + CDbl(mSimResults(Idx(K), OutCol))
+                        GroupCount(G) = GroupCount(G) + 1
+                    Next K
+                    For K = 1 To GROUPS
+                        If GroupCount(K) > 0 Then
+                            GroupMean = GroupSum(K) / GroupCount(K)
+                            If K = 1 Then
+                                LowMean(I) = GroupMean
+                                HighMean(I) = GroupMean
+                            Else
+                                If GroupMean < LowMean(I) Then LowMean(I) = GroupMean
+                                If GroupMean > HighMean(I) Then HighMean(I) = GroupMean
+                            End If
+                        End If
+                    Next K
+                    Corr(I) = PairCorrelation(InCol, OutCol)
+                    SumR2 = SumR2 + Corr(I) ^ 2
+                    Used(I) = True
+                    NRows = NRows + 1
+                End If
+            End If
+        Next I
+
+        Set TopCell = Start.Offset(Offs, 0)
+        TopCell.Value = "Output: " & RiskOutput.Name & " (" & AddressWithSheet(RiskOutput.Cell) & ")"
+        TopCell.Font.Bold = True
+        If NRows > 0 Then
+            ' Order the inputs by swing, largest first
+            ReDim Order(1 To NRows)
+            K = 0
+            For I = 1 To mRiskInputs.Count
+                If Used(I) Then
+                    K = K + 1
+                    Order(K) = I
+                End If
+            Next I
+            For I = 2 To NRows
+                Tmp = Order(I)
+                K = I - 1
+                Do While K >= 1
+                    If HighMean(Order(K)) - LowMean(Order(K)) >= HighMean(Tmp) - LowMean(Tmp) Then Exit Do
+                    Order(K + 1) = Order(K)
+                    K = K - 1
+                Loop
+                Order(K + 1) = Tmp
+            Next I
+
+            Set Table = TopCell.Offset(1, ChartWidth + 1).Resize(NRows + 1, 7)
+            Table.Rows(1).Value = Array("Input", "Lowest decile mean", "Highest decile mean", _
+                "Low vs mean", "High vs mean", "Swing", "% of variance (approx.)")
+            Table.Rows(1).Font.Bold = True
+            For K = 1 To NRows
+                I = Order(K)
+                Table.Cells(K + 1, 1).Value = NameOrAddress(mRiskInputs(I).Cell)
+                Table.Cells(K + 1, 2).Value = LowMean(I)
+                Table.Cells(K + 1, 3).Value = HighMean(I)
+                Table.Cells(K + 1, 4).Value = LowMean(I) - OverallMean
+                Table.Cells(K + 1, 5).Value = HighMean(I) - OverallMean
+                Table.Cells(K + 1, 6).Value = HighMean(I) - LowMean(I)
+                If SumR2 > 0 Then Table.Cells(K + 1, 7).Value = Corr(I) ^ 2 / SumR2 Else Table.Cells(K + 1, 7).Value = 0
+            Next K
+            Table.Columns(2).Resize(, 5).Offset(1).Resize(NRows).NumberFormat = "#,##0.00"
+            Table.Columns(7).Offset(1).Resize(NRows).NumberFormat = "0.0%"
+            ThickBorders Table
+            Table.Columns.AutoFit
+            mOutSheet.Names.Add Name:="MeanTornadoTable" & CStr(J), RefersTo:=Table.Cells(1, 1)
+
+            Set ChartObj = mOutSheet.ChartObjects.Add(TopCell.Offset(1, 0).Left, TopCell.Offset(1, 0).Top, _
+                TopCell.Offset(1, 0).Resize(1, ChartWidth).Width, TopCell.Offset(1, 0).Resize(ChartHeight, 1).Height)
+            With ChartObj.Chart
+                .ChartType = xlBarClustered
+                Do While .SeriesCollection.Count > 0
+                    .SeriesCollection(1).Delete
+                Loop
+                With .SeriesCollection.NewSeries
+                    .Name = "Lowest decile"
+                    .Values = Table.Cells(2, 4).Resize(NRows, 1)
+                    .XValues = Table.Cells(2, 1).Resize(NRows, 1)
+                    .Format.Fill.ForeColor.RGB = RGB(192, 0, 0)
+                End With
+                With .SeriesCollection.NewSeries
+                    .Name = "Highest decile"
+                    .Values = Table.Cells(2, 5).Resize(NRows, 1)
+                    .XValues = Table.Cells(2, 1).Resize(NRows, 1)
+                    .Format.Fill.ForeColor.RGB = RGB(0, 140, 0)
+                End With
+                .ChartGroups(1).Overlap = 100
+                .ChartGroups(1).GapWidth = 50
+                .Axes(xlCategory).ReversePlotOrder = True
+                .Axes(xlCategory).TickLabelPosition = xlTickLabelPositionLow
+                .HasLegend = True
+                .Legend.Position = xlLegendPositionBottom
+                .HasTitle = True
+                .ChartTitle.text = "Change in mean of " & RiskOutput.Name & " (mean " & Format(OverallMean, "#,##0.00") & ")"
+                .ChartTitle.Font.Size = 12
+            End With
+        Else
+            TopCell.Offset(1, 0).Value = "No input changes this output."
+        End If
+        If NRows + 3 > ChartHeight Then Offs = Offs + NRows + 5 Else Offs = Offs + ChartHeight + 3
+    Next RiskOutput
+Finish:
+End Sub
+
+Private Function IsNumber(X As Variant) As Boolean
+    If IsError(X) Then
+        IsNumber = False
+    Else
+        IsNumber = (VarType(X) = vbDouble Or VarType(X) = vbLong Or VarType(X) = vbInteger _
+            Or VarType(X) = vbSingle Or VarType(X) = vbCurrency Or VarType(X) = vbDecimal)
+    End If
+End Function
+
+Private Function ColumnMean(ByVal Col As Long) As Double
+    Dim K As Long
+    Dim N As Long
+    Dim S As Double
+    For K = 1 To mIterations
+        If IsNumber(mSimResults(K, Col)) Then
+            S = S + CDbl(mSimResults(K, Col))
+            N = N + 1
+        End If
+    Next K
+    If N > 0 Then ColumnMean = S / N
+End Function
+
+Private Function PairCorrelation(ByVal ColX As Long, ByVal ColY As Long) As Double
+' Pearson correlation over the iterations where both columns hold numbers
+    Dim K As Long
+    Dim N As Long
+    Dim SX As Double, SY As Double, SXX As Double, SYY As Double, SXY As Double
+    Dim X As Double, Y As Double
+    Dim Den As Double
+    For K = 1 To mIterations
+        If IsNumber(mSimResults(K, ColX)) And IsNumber(mSimResults(K, ColY)) Then
+            X = CDbl(mSimResults(K, ColX))
+            Y = CDbl(mSimResults(K, ColY))
+            N = N + 1
+            SX = SX + X
+            SY = SY + Y
+            SXX = SXX + X * X
+            SYY = SYY + Y * Y
+            SXY = SXY + X * Y
+        End If
+    Next K
+    If N < 2 Then Exit Function
+    Den = Sqr((N * SXX - SX * SX) * (N * SYY - SY * SY))
+    If Den > 0 Then PairCorrelation = (N * SXY - SX * SY) / Den
+End Function
+
+Private Sub SortByKey(Keys() As Double, Idx() As Long, ByVal Lo As Long, ByVal Hi As Long)
+' Quicksort of Keys(Lo..Hi), moving Idx along. Ties keep no particular order.
+    Dim I As Long
+    Dim J As Long
+    Dim Pivot As Double
+    Dim TK As Double
+    Dim TI As Long
+    Do While Lo < Hi
+        I = Lo
+        J = Hi
+        Pivot = Keys((Lo + Hi) \ 2)
+        Do While I <= J
+            Do While Keys(I) < Pivot
+                I = I + 1
+            Loop
+            Do While Keys(J) > Pivot
+                J = J - 1
+            Loop
+            If I <= J Then
+                TK = Keys(I): Keys(I) = Keys(J): Keys(J) = TK
+                TI = Idx(I): Idx(I) = Idx(J): Idx(J) = TI
+                I = I + 1
+                J = J - 1
+            End If
+        Loop
+        ' Recurse into the smaller part, loop on the larger one
+        If J - Lo < Hi - I Then
+            If Lo < J Then SortByKey Keys, Idx, Lo, J
+            Lo = I
+        Else
+            If I < Hi Then SortByKey Keys, Idx, I, Hi
+            Hi = J
+        End If
+    Loop
 End Sub
 
 Sub CalculateDependencyMatrix()

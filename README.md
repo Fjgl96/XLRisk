@@ -3,7 +3,7 @@ XLRisk is an Excel add-in for [Monte Carlo simulation](https://en.wikipedia.org/
 It is **free and open source** and **compatible with Excel for the Mac**. It works in a similar fashion to
 commercial add-ins such as @RISK.
 
-**[⬇ Download XLRisk 1.1.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)** ·
+**[⬇ Download XLRisk 1.2.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)** ·
 **[Manual en español](docs/manual-es.md)** ([Excel](docs/XLRisk_Manual_ES.xlsx)) ·
 **[Test workbooks](examples/)** ([basic](examples/XLRisk_Prueba_Basica.xlsx), [multi-variable](examples/XLRisk_Prueba_Multivariable.xlsx)) ·
 [Changelog](CHANGELOG.md)
@@ -18,12 +18,18 @@ This fork, maintained by [Fjgl96](https://github.com/Fjgl96), extends the origin
 commercial Monte Carlo add-ins, while keeping it free, open source and compatible with existing XLRisk
 workbooks.
 
-**What is new in 1.1.0**
-* Professional random number generator (MRG32k3a) instead of VBA `Rnd()`, with identical results on
-  32-bit, 64-bit and Mac Excel.
-* A fixed Seed now reproduces the whole simulation (in the original, the first run of a session differed).
-* Unbiased Latin Hypercube shuffle.
-* 20 self tests against exact results, a build script and a Spanish manual with a runnable example.
+**What is new in 1.2.0**
+* **Tornado in the units of the output** (Output Mean Tornado), with an approximate share of variance per input.
+* **Compare Runs**: overlays the cumulative distributions of several simulations with a table of statistics.
+* **Swap Functions**: replaces the Risk functions by their expected values to share the model, and back.
+* Functions with the same names as in @RISK: `RiskOutput`, `RiskMean`, `RiskStdDev`, `RiskMin`, `RiskMax`,
+  `RiskPercentile`, `RiskTarget`, `RiskTriGen`, `RiskPoisson`, `RiskLognorm2`.
+* About 3 times faster runs when other workbooks are open.
+* `RiskDiscrete` accepts values in any order; `RiskBernoulli`/`RiskBinomial` show exact expected values;
+  data tables are off by default; histograms also in Excel 2013.
+
+**1.1.0**: professional random number generator (MRG32k3a), a fixed Seed reproduces the whole simulation,
+unbiased Latin Hypercube shuffle, self tests (58 in 1.2.0), build script and a Spanish manual.
 
 ## Features
 * Free and open source (MIT license)
@@ -38,8 +44,9 @@ workbooks.
 2. Windows: right click the file > Properties > tick **Unblock** > OK. Otherwise Excel opens it in
    Protected View and it does not load.
 3. Copy it to `%APPDATA%\Microsoft\AddIns` (a trusted location for Excel).
-4. In Excel: Developer > Excel Add-ins > Browse > select `XLRisk.xlam` > OK. Untick any older XLRisk first.
-5. Check: `=XLRiskVersion()` in any cell returns `1.1.0`. Optionally run the self tests
+4. In Excel: File > Options > Add-ins > Manage: Excel Add-ins > Go > Browse > select `XLRisk.xlam` > OK.
+   Untick any older XLRisk first and keep a single copy of the file on your computer.
+5. Check: `=XLRiskVersion()` in any cell returns `1.2.0`. Optionally run the self tests
    (Alt+F8, `XLRisk.xlam!XLRiskSelfTests`).
 
 ## Quick start
@@ -48,7 +55,8 @@ workbooks.
    XLRisk finds the inputs by scanning the formulas of the workbook.
 3. Select the result cell and press **Add Output**.
 4. Press **Setup** to choose the Seed and options, set the iterations and press **Run**.
-5. Read the new results sheet: statistics, percentiles, histogram and tornado.
+5. Read the new results sheet: statistics, percentiles, histogram, cumulative distribution, tornado and
+   output mean tornado. Run again with other assumptions and press **Compare Runs** to overlay the runs.
 
 Outside a simulation every risk function returns its expected value, so the model keeps showing a base case.
 
@@ -60,13 +68,19 @@ Outside a simulation every risk function returns its expected value, so the mode
 | `RiskNormal(mean, stdev)` | | Symmetric variables |
 | `RiskLogNorm(mu, sigma)` | **mean and stdev of ln(X)**, like @RISK's `RiskLognorm2` | Positive, right-skewed variables |
 | `RiskUniform(min, max)` | | Only the range is known |
-| `RiskDiscrete(values, probabilities)` | values in ascending order, probabilities sum to 1 | Scenarios |
+| `RiskTriGen(bottom, mode, top, [p_bottom], [p_top])` | values at two percentiles (10% and 90% by default) | Expert estimates of P10, most likely and P90 |
+| `RiskDiscrete(values, probabilities)` | values in any order, probabilities sum to 1 | Scenarios |
 | `RiskDUniform(values)` | | Equally likely options |
-| `RiskBernoulli(p)`, `RiskBinomial(n, p)` | | Events that happen or not; counts |
+| `RiskBernoulli(p)`, `RiskBinomial(n, p)`, `RiskPoisson(lambda)` | | Events that happen or not; counts |
 | `RiskExpon(mean)`, `RiskGamma(alpha, beta)`, `RiskErlang(k, lambda)`, `RiskWeibull(alpha, beta)` | beta and lambda are scale parameters | Times, sizes, lifetimes |
 | `RiskBeta(alpha, beta, [A], [B])` | A, B default to 0, 1 | Rates and proportions |
 | `RiskCumul(min, max, xValues, cumProbs)` | | Expert percentiles |
+| `RiskLognorm2(mu, sigma)` | same as `RiskLogNorm` | Name used by @RISK |
 | `RiskCorrmat(matrix, position)` | last argument of any distribution | Correlated inputs |
+
+Outputs and results: `RiskOutput("Name")` marks an output from its formula (`=RiskOutput("NPV") + ...`);
+`RiskMean`, `RiskStdDev`, `RiskMin`, `RiskMax`, `RiskPercentile` (`RiskPtoX`) and `RiskTarget` (`RiskXtoP`)
+read the latest simulation.
 
 Helpers: `RiskIsValidCorrmat`, `RiskCorrectCorrmat`, `RiskSCorrel`, `XLRiskVersion`.
 Full detail, settings and examples in the [Spanish manual](docs/manual-es.md) and in the
@@ -90,7 +104,7 @@ check it with the self tests in [`tests/README.md`](tests/README.md). The Spanis
 
 ## En español
 XLRisk es un complemento gratuito y open source para simulación Monte Carlo en Excel, compatible con los
-libros del XLRisk original. **[Descarga la versión 1.1.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)**
+libros del XLRisk original. **[Descarga la versión 1.2.0](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam)**
 y sigue el **[manual en español](docs/manual-es.md)**, que también está como
 **[libro de Excel](docs/XLRisk_Manual_ES.xlsx)** con un modelo de ejemplo listo para simular.
 Para probarlo hay dos libros listos para correr (solo abrir y pulsar Run): uno

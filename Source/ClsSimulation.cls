@@ -195,7 +195,12 @@ Public Sub Run()
     Set mRiskInputs = New Collection
     CollectRiskInputs mRiskInputs
     If mRiskInputs.Count = 0 Then
-        MsgBox "No risk inputs defined", Title:="XLRisk simulation error"
+        If HasSwapSheet(ActiveWorkBook) Then
+            MsgBox "The Risk functions are swapped out for their expected values. " & _
+                "Press Swap Functions to restore them and run again.", Title:="XLRisk simulation error"
+        Else
+            MsgBox "No risk inputs defined", Title:="XLRisk simulation error"
+        End If
         GoTo RestoreExcel
     End If
     
