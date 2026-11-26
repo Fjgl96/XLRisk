@@ -79,6 +79,16 @@ Sub RibbonAddOutput(control As IRibbonControl)
     AddOutput
 End Sub
 
+'Callback for BtnCompare onAction
+Sub RibbonCompareRuns(control As IRibbonControl)
+    CompareRuns
+End Sub
+
+'Callback for BtnSwap onAction
+Sub RibbonSwapFunctions(control As IRibbonControl)
+    SwapFunctions
+End Sub
+
 'Callback for ComboIterations getText
 Sub RibbonIterationsText(control As IRibbonControl, ByRef returnedVal)
     Dim XLRisk As Worksheet

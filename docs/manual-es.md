@@ -39,6 +39,8 @@ También está como libro de Excel, con el ejemplo listo para simular: [XLRisk_M
 | Iterations | Número de iteraciones de la simulación. |
 | Add Output | Registra la celda o rango seleccionado como output. |
 | Run / Stop | Corre o detiene la simulación. |
+| Compare Runs | Superpone en una hoja nueva (Risk Compare) las curvas acumuladas de un output en todas las hojas Risk Results, con una tabla de media, desviación, P5, mediana, P95 y probabilidad de quedar bajo 0 de cada corrida. Desde la versión 1.2. |
+| Swap Functions | Cambia cada función Risk del libro por su valor esperado, para enviar el modelo a quien no tiene XLRisk. Al pulsarlo otra vez, devuelve las funciones. Desde la versión 1.2. |
 | Help / About | Ayuda en línea y versión. |
 
 ## Ejemplos ilustrados
@@ -82,11 +84,12 @@ Todas las funciones de distribución aceptan `RiskCorrmat` como último argument
 | Sintaxis | Parámetros | Fuera de la simulación | Cuándo usarla | Ejemplo |
 | --- | --- | --- | --- | --- |
 | `RiskTriang(min, moda, max)` | Mínimo, valor más probable y máximo. Exige min < moda < max estricto. | (min + moda + max) / 3 | Juicio experto en tres puntos: pesimista, más probable, optimista. | `=RiskTriang(45, 50, 56)` |
+| `RiskTriGen(P10, moda, P90, [p_inf], [p_sup])` | Valor en el percentil bajo, valor más probable y valor en el percentil alto. Los percentiles son 10% y 90% si no se indican. Desde la versión 1.2. | Media de la triangular que cumple esos percentiles | Juicio experto cuando el experto prefiere decir P10 y P90 en lugar de mínimo y máximo absolutos. | `=RiskTriGen(80, 100, 130)` |
 | `RiskPert(min, moda, max)` | Igual que RiskTriang. Exige min < moda < max estricto. | (min + 4 x moda + max) / 6 | Como la triangular, pero con menos peso en los extremos. Plazos y costos de proyectos. | `=RiskPert(80, 100, 150)` |
 | `RiskNormal(media, desv)` | Media y desviación estándar de la variable. | media | Variables simétricas alrededor de un valor. Puede dar negativos. | `=RiskNormal(10000, 1500)` |
 | `RiskLogNorm(mu, sigma)` | OJO: mu y sigma son la media y la desviación de LN(X), no de X. Es la RiskLognorm2 de @RISK. | EXP(mu + sigma^2 / 2) | Variables positivas con cola a la derecha: precios, tipo de cambio, ventas. Ver Buenas prácticas para convertir media y desviación. | `=RiskLogNorm(LN(3.75) - 0.5*LN(1+(0.1/3.75)^2), SQRT(LN(1+(0.1/3.75)^2)))` |
 | `RiskUniform(min, max)` | Mínimo y máximo. Todos los valores igual de probables. | (min + max) / 2 | Solo conoces el rango, sin un valor más probable. | `=RiskUniform(0.08, 0.12)` |
-| `RiskDiscrete(valores, probabilidades)` | Dos rangos del mismo tamaño. Valores en orden ascendente; probabilidades que suman 1. | SUMAPRODUCTO(valores, probabilidades) | Escenarios con su probabilidad: bajo, base, alto. | `=RiskDiscrete(A2:A4, B2:B4)` |
+| `RiskDiscrete(valores, probabilidades)` | Dos rangos del mismo tamaño. Valores en cualquier orden (desde la versión 1.2); probabilidades que suman 1. | SUMAPRODUCTO(valores, probabilidades) | Escenarios con su probabilidad: bajo, base, alto. | `=RiskDiscrete(A2:A4, B2:B4)` |
 | `RiskDUniform(valores)` | Un rango de valores, todos con la misma probabilidad. | promedio de los valores | Elegir al azar entre opciones igual de probables. | `=RiskDUniform(A2:A6)` |
 | `RiskBernoulli(p)` | Probabilidad de que ocurra el evento (entre 0 y 1). | p | Evento que ocurre (1) o no (0): perder un cliente, aprobar un crédito. | `=RiskBernoulli(0.15)` |
 | `RiskBinomial(n, p)` | Número de ensayos y probabilidad de éxito de cada uno. | n x p | Cuántos de n eventos independientes ocurren: clientes en mora de una cartera. | `=RiskBinomial(200, 0.04)` |
@@ -132,8 +135,9 @@ Todas las funciones de distribución aceptan `RiskCorrmat` como último argument
 | Calculate Percent Rank | Escribes un valor y te dice qué porcentaje de iteraciones quedó por debajo. Sirve para probabilidad de pérdida o de no llegar a la meta. |
 | Correlations | Correlación de cada input con cada output. |
 | Output Cumulative Distributions | Curva acumulada de cada output. |
-| Output Distributions | Histograma de cada output (Excel 2016 o superior). |
-| `Risk Tornado Diagram` | Qué inputs mueven más cada output, ordenados por correlación. Es el gráfico que se lleva a comité. |
+| Output Distributions | Histograma de cada output. En Excel 2013 sale como gráfico de columnas. |
+| `Risk Tornado Diagram` | Qué inputs mueven más cada output, ordenados por correlación. En la celda Select Output eliges el output. |
+| Output Mean Tornado | Tornado en las unidades del output (soles, dólares): para cada input, cuánto cambia la media del output entre su decil más bajo y su decil más alto, y qué parte aproximada de la varianza explica. Es el gráfico que se lleva a comité. Desde la versión 1.2. |
 
 ## Ejemplo: precio x cantidad
 
@@ -152,7 +156,7 @@ Precio 45 / 50 / 56 con probabilidades 25% / 50% / 25%; cantidad 8,000 / 10,000 
 | --- | --- |
 | `RiskLogNorm usa los parámetros del logaritmo` | Para una variable con media m y desviación s: sigma = RAIZ(LN(1 + (s/m)^2)) y mu = LN(m) - sigma^2/2. Luego =RiskLogNorm(mu, sigma). Si pones m y s directo, simula EXP(m), que suele ser un número absurdo. |
 | Triangular y PERT exigen min < moda < max | Si el valor más probable es igual al mínimo o al máximo devuelven #VALOR!. Usa un mínimo apenas menor. |
-| `RiskDiscrete exige valores ascendentes` | Ordena los escenarios de menor a mayor y verifica que las probabilidades sumen exactamente 1. |
+| `RiskDiscrete: probabilidades que suman 1` | Los valores pueden ir en cualquier orden desde la versión 1.2; las probabilidades deben sumar exactamente 1. |
 | Una función de riesgo por celda | `XLRisk detecta los inputs buscando las funciones en las fórmulas. Pon cada distribución en su propia celda y referencia esa celda en el resto del modelo.` |
 | Cuántas iteraciones | 1,000 para explorar; 5,000 a 10,000 para presentar. Si la media cambia mucho entre dos corridas con semillas distintas, faltan iteraciones. |
 | Fija la semilla para presentar | Con una semilla fija, quien revise el modelo obtiene exactamente los mismos números. |
@@ -161,11 +165,11 @@ Precio 45 / 50 / 56 con probabilidades 25% / 50% / 25%; cantidad 8,000 / 10,000 
 
 ## Autopruebas
 
-El complemento trae 20 pruebas automáticas que verifican el generador aleatorio, el muestreo y una simulación completa contra resultados exactos.
+El complemento trae 58 pruebas automáticas que verifican el generador aleatorio, el muestreo, una simulación completa, las funciones nuevas, el tornado en soles, Compare Runs y Swap Functions contra resultados exactos.
 
 Para correrlas: Alt+F8, escribe XLRisk.xlam!XLRiskSelfTests en Nombre de la macro y pulsa Ejecutar.
 
-Tarda alrededor de un minuto. Abre un libro con cada prueba en PASS (verde) o FAIL (rojo). No guarda nada.
+Tarda unos minutos. Abre un libro con cada prueba en PASS (verde) o FAIL (rojo). No guarda nada.
 
 Conviene correrlas después de instalar una versión nueva.
 
@@ -173,16 +177,20 @@ Conviene correrlas después de instalar una versión nueva.
 
 | Capacidad | @RISK | XLRisk 1.2.0 |
 | --- | --- | --- |
-| Distribuciones | Más de 90 | 17 (ver hoja Funciones) |
+| Distribuciones | Más de 90 | 18 (ver hoja Funciones) |
 | Latin Hypercube y correlaciones (Iman-Conover) | Sí | Sí |
 | Semilla reproducible | Sí | Sí, desde la versión 1.2.0 |
 | Histogramas, percentiles, tornado | Sí | Sí |
+| Tornado en unidades del output (cambio en la media) | Sí | Sí, desde la versión 1.2 |
+| Comparar corridas con curvas superpuestas | Sí | Sí, desde la versión 1.2 (Compare Runs) |
+| Reemplazar funciones por valores para compartir (Swap) | Sí | Sí, desde la versión 1.2 |
+| `RiskTrigen (triangular por percentiles)` | Sí | Sí, desde la versión 1.2 |
 | `RiskOutput dentro de la fórmula` | Sí | Sí, desde la versión 1.2 |
 | `RiskMean, RiskStdDev, RiskPercentile, RiskTarget en celda` | Sí | Sí, desde la versión 1.2 |
 | `RiskLognorm2 (parámetros de LN(X))` | Sí | Sí, desde la versión 1.2 (y RiskLogNorm, igual) |
 | `RiskLognorm(media, desv) de la variable` | Sí | No: RiskLogNorm usa los parámetros de LN(X) |
 | Simulación sin recalcular otros libros abiertos | Sí | Sí, desde la versión 1.2 |
-| Escenarios en una corrida (RiskSimtable) | Sí | No (Fase 2) |
+| Escenarios en una corrida (RiskSimtable) | Sí | No (próxima fase) |
 | Ajuste de distribuciones a datos | Sí | No (Fase 3) |
 | Precio | US$ 2,900 a 3,500 por licencia | Gratis, código abierto (licencia MIT) |
 

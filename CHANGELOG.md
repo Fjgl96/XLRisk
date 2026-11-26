@@ -5,7 +5,47 @@ Versions follow [Semantic Versioning](https://semver.org). The original XLRisk b
 pyscripter has no version numbers; its last change (19 March 2025, "Fix #29") is
 treated as version 1.0.0.
 
-## [Unreleased] - 1.2.0-beta.2
+## [1.2.0] - 2026-11-25
+
+### Added
+- **Output Mean Tornado** (new section of every Risk Results sheet). For each output and input the
+  iterations are sorted by the input and split in 10 groups of the same size; the bars go from the
+  lowest to the highest mean of the output among the groups, measured from the overall mean, so
+  the tornado reads in the units of the output (soles, dollars), like the "change in output mean"
+  tornado of @RISK. A table next to each chart lists both means, the swing and an approximate share
+  of the variance (correlation squared, rescaled to 100%). Inputs that do not change the output
+  are left out.
+- **Compare Runs** button: overlays the cumulative distribution of one output from every
+  "Risk Results N" sheet on a new "Risk Compare" sheet, with mean, standard deviation, minimum,
+  5th percentile, median, 95th percentile, maximum and probability below 0 of each run.
+- **Swap Functions** button: replaces every Risk distribution function of the workbook by its
+  expected value (only the function call, the rest of the formula stays), so the file can be sent
+  to people without XLRisk. The original formulas are kept in a hidden "XLRisk Swap" sheet; the
+  second press puts them back. Run explains what to do while the functions are swapped out.
+- `RiskTriGen(bottom, mostLikely, top, [bottomPerc], [topPerc])`: triangular distribution given
+  two percentiles (10% and 90% by default) and the most likely value, as in @RISK.
+- Histograms in Excel 2013 and older: a column chart of the counts in 20 equal bins (also used
+  if the Excel 2016 histogram chart fails).
+- 27 new self tests (58 in total).
+
+### Fixed
+- A simulation that fails now says why. The original stopped without any message on errors, for
+  example when an output of the XLRisk sheet showed `#NAME?`; that case now names the cell and
+  how to fix it.
+- `RiskDiscrete` accepts the values in any order: it sorts them together with their
+  probabilities. Before, unordered values gave `#VALUE!`. It also rejects a negative first
+  probability, which was not checked.
+- `RiskBernoulli` and `RiskBinomial` show their exact expected value outside a simulation
+  (`RiskBernoulli(0.15)` shows 0.15, not a rounded 0; `RiskBinomial(10, 0.15)` shows 1.5, not 2).
+
+### Changed
+- "Calculate data tables during simulation" is off in new XLRisk sheets. Data tables recalculate in
+  every iteration and made simulations of models with sensitivity tables much slower. Existing
+  workbooks keep their setting.
+- The Excel 2016 histogram chart type is written as a number, so the add-in also compiles in
+  older Excel.
+
+## Also in 1.2.0 (developed as 1.2.0-beta.2)
 
 ### Changed
 - **Faster simulations.** `Application.Calculate` recalculates every open workbook in every
