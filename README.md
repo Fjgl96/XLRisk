@@ -40,7 +40,7 @@ unbiased Latin Hypercube shuffle, self tests (58 in 1.2.0), build script and a S
 * Statistics, percentiles, histograms, cumulative distributions and tornado diagrams
 
 ## Install
-1. Download [`XLRisk.xlam`](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam) (SHA-256 `e35b406e46ed0241def86ded4f256098bf371b0c01c2e4aa76d37ee243aa8369`).
+1. Download [`XLRisk.xlam`](https://github.com/Fjgl96/XLRisk/raw/master/XLRisk.xlam) (SHA-256 `092b23c72f04c3315b5d85854cb495775ca23213ffa207aada1fe8138d1df7a2`).
 2. Windows: right click the file > Properties > tick **Unblock** > OK. Otherwise Excel opens it in
    Protected View and it does not load.
 3. Copy it to `%APPDATA%\Microsoft\AddIns` (a trusted location for Excel).
