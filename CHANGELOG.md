@@ -5,6 +5,31 @@ Versions follow [Semantic Versioning](https://semver.org). The original XLRisk b
 pyscripter has no version numbers; its last change (19 March 2025, "Fix #29") is
 treated as version 1.0.0.
 
+## [Unreleased] - 1.2.0-beta.2
+
+### Changed
+- **Faster simulations.** `Application.Calculate` recalculates every open workbook in every
+  iteration. During a simulation XLRisk now suspends the recalculation of the sheets of the other
+  open workbooks (`Worksheet.EnableCalculation`) and restores exactly those sheets at the end, also
+  when the run fails or is stopped. Add a cell named `RecalcOtherWorkbooks` with the value `TRUE`
+  in the XLRisk sheet to keep the previous behaviour.
+- The status bar is refreshed, and Excel processes the Stop button, about four times per second
+  instead of in every iteration.
+
+### Added
+- **Functions with the same names and arguments as in @RISK:**
+  - `RiskOutput("Name")`: marks a cell as an output from its formula, as in
+    `=RiskOutput("Profit") + C17 - C18`. Returns 0. The Add Output button keeps working; a cell
+    registered both ways counts once.
+  - `RiskMean`, `RiskStdDev`, `RiskMin`, `RiskMax`, `RiskPercentile` (and `RiskPtoX`),
+    `RiskTarget` (and `RiskXtoP`): statistics of an output or input cell in the latest simulation,
+    read from the most recent "Risk Results N" sheet, so they work after reopening the workbook.
+    They return `#N/A` while a simulation runs and for cells without results.
+  - `RiskPoisson(lambda)` and `RiskLognorm2(mu, sigma)` (same as XLRisk's `RiskLogNorm`).
+- Self tests for all of the above (31 checks).
+- `ClsSimulation.LoopSeconds`: seconds taken by the iterations of the last run. The self tests
+  report it (INFO row) and check that the other workbooks recalculate again after a run.
+
 ## [1.1.0] - 2026-11-25
 
 ### Changed
